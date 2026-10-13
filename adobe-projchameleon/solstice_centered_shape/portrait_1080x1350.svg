@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <rect id="bg" x="0" y="0" width="1080" height="1350" fill="#2E1B30"/>
+  <ellipse id="ring" cx="540.0" cy="560.0" rx="310.0" ry="310.0" fill="none" fill-opacity="0.0" stroke="#FFF7ED" stroke-width="3" opacity="0.5"/>
+  <ellipse id="sun" cx="540.0" cy="560.0" rx="260.0" ry="260.0" fill="#FFC13B"/>
+  <rect id="band_1" x="280" y="590" width="520" height="10" fill="#2E1B30"/>
+  <rect id="band_2" x="280" y="635" width="520" height="16" fill="#2E1B30"/>
+  <rect id="band_3" x="280" y="680" width="520" height="24" fill="#2E1B30"/>
+  <rect id="horizon" x="0" y="720" width="1080" height="630" fill="#4A2C4D"/>
+  <rect id="product_img" x="432" y="400" width="216" height="360" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="logo" x="420" y="60" width="240" height="80" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="110" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+    <tspan x="540.0" y="905.7" fill="#FFF7ED">Chase</tspan>
+    <tspan x="540.0" y="1026.7" fill="#FFC13B">the Light</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="270" y="1120" width="540" height="104" rx="52.0" fill="#FF6B4A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="36" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+      <tspan x="540.0" y="1183.5" fill="#FFF7ED">Shop the Summer Line</tspan>
+    </text>
+  </g>
+</svg>

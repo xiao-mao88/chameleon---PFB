@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="fernway_split_even_square_1080x1080" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <rect id="bg" x="0" y="0" width="1080" height="1080" fill="#F4EFE6"/>
+  <rect id="color_block" x="30" y="110" width="480" height="920" fill="#A9BFA0"/>
+  <rect id="photo" x="70" y="70" width="480" height="920" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="inset_img" x="400" y="760" width="220" height="220" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <g id="badge">
+    <ellipse id="badge_bg" cx="545.0" cy="125.0" rx="95.0" ry="95.0" fill="#B04E28"/>
+    <text id="badge_label" font-family="Solstice Sans" font-size="46" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="545.0" y="116.7" fill="#FAF7F1">20%</tspan>
+      <tspan x="545.0" y="162.7" fill="#FAF7F1">off</tspan>
+    </text>
+  </g>
+  <rect id="logo" x="670" y="262.0" width="200" height="50" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="54" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="670.0" y="391.0" fill="#1F3D2B">Bring the</tspan>
+    <tspan x="670.0" y="450.4" fill="#1F3D2B">outdoors</tspan>
+    <tspan x="670.0" y="509.8" fill="#1F3D2B">in, one leaf</tspan>
+    <tspan x="670.0" y="569.2" fill="#1F3D2B">at a time</tspan>
+  </text>
+  <text id="body" font-family="Solstice Sans" font-size="26" font-weight="400" fill="#3A5242" text-anchor="start">
+    <tspan x="670.0" y="626.5" fill="#3A5242">Healthy plants delivered to</tspan>
+    <tspan x="670.0" y="661.6" fill="#3A5242">your door, with care guides</tspan>
+    <tspan x="670.0" y="696.7" fill="#3A5242">written by real gardeners.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="670" y="738.0" width="260" height="80" rx="40.0" fill="#1F3D2B"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="28" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="800.0" y="787.0" fill="#FAF7F1">Shop plants</tspan>
+    </text>
+  </g>
+</svg>

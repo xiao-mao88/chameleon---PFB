@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <rect id="bg_img" x="0" y="0" width="1080" height="1920" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="accent_1" x="170" y="760" width="260" height="260" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="accent_2" x="640" y="380" width="240" height="240" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="product_img" x="330" y="330" width="420" height="700" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="scrim" x="0" y="1180" width="1080" height="740" fill="#2E1B30" opacity="0.8"/>
+  <rect id="logo" x="390" y="110" width="300" height="100" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="140" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+    <tspan x="540.0" y="1391.8" fill="#FFF7ED">Chase</tspan>
+    <tspan x="540.0" y="1545.8" fill="#FFC13B">the Light</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="240" y="1640" width="600" height="120" rx="60.0" fill="#FF6B4A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="40" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+      <tspan x="540.0" y="1712.8" fill="#FFF7ED">Shop the Summer Line</tspan>
+    </text>
+  </g>
+</svg>

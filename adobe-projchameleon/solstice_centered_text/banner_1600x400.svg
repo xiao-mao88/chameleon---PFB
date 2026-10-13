@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400">
+  <rect id="bg" x="0" y="0" width="1600" height="400" fill="#2E1B30"/>
+  <rect id="product_img" x="130" y="60" width="168" height="280" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="logo" x="360" y="87.8" width="150" height="50" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="eyebrow" font-family="Solstice Sans" font-size="18" font-weight="700" fill="#FFC13B" text-anchor="start">
+    <tspan x="360.0" y="170.4" fill="#FFC13B">NEW FOR SUMMER</tspan>
+  </text>
+  <text id="headline" font-family="Solstice Serif" font-size="56" font-weight="700" fill="#FFF7ED" text-anchor="start">
+    <tspan x="360.0" y="232.1" fill="#FFF7ED">Chase the Light</tspan>
+  </text>
+  <text id="subhead" font-family="Solstice Sans" font-size="22" font-weight="400" fill="#E8D6E0" text-anchor="start">
+    <tspan x="360.0" y="276.3" fill="#E8D6E0">Botanical sparkling infusions,</tspan>
+    <tspan x="360.0" y="304.9" fill="#E8D6E0">crafted for golden hour.</tspan>
+  </text>
+  <text id="features" font-family="Solstice Sans" font-size="22" font-weight="400" fill="#FFF7ED" text-anchor="start">
+    <tspan x="1000.0" y="129.0" fill="#FFF7ED">Real botanicals. No added sugar.</tspan>
+    <tspan x="1000.0" y="157.6" fill="#FFF7ED">45 calories a can.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="1000" y="184.9" width="330" height="72" rx="36.0" fill="#FF6B4A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="22" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+      <tspan x="1165.0" y="227.9" fill="#FFF7ED">Shop the Summer Line</tspan>
+    </text>
+  </g>
+  <text id="footnote" font-family="Solstice Sans" font-size="15" font-weight="400" fill="#E8D6E0" text-anchor="start">
+    <tspan x="1000.0" y="287.4" fill="#E8D6E0">Available at select retailers while supplies last.</tspan>
+  </text>
+</svg>

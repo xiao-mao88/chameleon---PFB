@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="fernway_split_even_portrait_1080x1350" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <rect id="bg" x="0" y="0" width="1080" height="1350" fill="#F4EFE6"/>
+  <rect id="color_block" x="130" y="110" width="880" height="600" fill="#A9BFA0"/>
+  <rect id="photo" x="80" y="60" width="880" height="600" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="inset_img" x="40" y="520" width="220" height="220" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <g id="badge">
+    <ellipse id="badge_bg" cx="925.0" cy="135.0" rx="105.0" ry="105.0" fill="#B04E28"/>
+    <text id="badge_label" font-family="Solstice Sans" font-size="52" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="925.0" y="125.6" fill="#FAF7F1">20%</tspan>
+      <tspan x="925.0" y="177.6" fill="#FAF7F1">off</tspan>
+    </text>
+  </g>
+  <rect id="logo" x="80" y="803.9" width="220" height="55" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="66" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="80.0" y="956.3" fill="#1F3D2B">Bring the outdoors</tspan>
+    <tspan x="80.0" y="1028.9" fill="#1F3D2B">in, one leaf at a time</tspan>
+  </text>
+  <text id="body" font-family="Solstice Sans" font-size="30" font-weight="400" fill="#3A5242" text-anchor="start">
+    <tspan x="80.0" y="1096.9" fill="#3A5242">Healthy plants delivered to your door, with</tspan>
+    <tspan x="80.0" y="1137.4" fill="#3A5242">care guides written by real gardeners.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="80" y="1188.1" width="300" height="88" rx="44.0" fill="#1F3D2B"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="32" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="230.0" y="1242.3" fill="#FAF7F1">Shop plants</tspan>
+    </text>
+  </g>
+</svg>

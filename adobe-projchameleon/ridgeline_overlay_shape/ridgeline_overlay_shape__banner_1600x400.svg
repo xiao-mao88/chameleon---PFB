@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ridgeline_overlay_shape_banner_1600x400" width="1600" height="400" viewBox="0 0 1600 400">
+  <rect id="bg_photo" x="0" y="0" width="1600" height="400" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="band_1" x="1300.0" y="0" width="70.2" height="264.0" fill="#C6E84A" opacity="0.92"/>
+  <rect id="band_2" x="1399.9" y="0" width="70.2" height="192.0" fill="#FF7A29" opacity="0.92"/>
+  <rect id="band_3" x="1499.8" y="0" width="70.2" height="336.0" fill="#FFFFFF" opacity="0.85"/>
+  <ellipse id="ring" cx="1080.0" cy="140.0" rx="105.0" ry="105.0" fill="none" fill-opacity="0.0" stroke="#FFFFFF" stroke-width="2"/>
+  <ellipse id="circle" cx="1080.0" cy="140.0" rx="75.0" ry="75.0" fill="#FF7A29"/>
+  <rect id="panel" x="30" y="30" width="820" height="340" rx="20.4" fill="#121C2B" opacity="0.92"/>
+  <rect id="logo" x="66" y="78.4" width="138" height="46" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="66" font-weight="700" fill="#FFFFFF" text-anchor="start">
+    <tspan x="66.0" y="207.2" fill="#FFFFFF">Take the long way</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="66" y="251.6" width="170" height="70" rx="35.0" fill="#C6E84A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="26" font-weight="700" fill="#121C2B" text-anchor="middle">
+      <tspan x="151.0" y="294.9" fill="#121C2B">Explore</tspan>
+    </text>
+  </g>
+</svg>

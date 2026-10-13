@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ridgeline_overlay_even_skyscraper_160x600" width="160" height="600" viewBox="0 0 160 600">
+  <rect id="bg_photo" x="0" y="0" width="160" height="600" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="product_img" x="16" y="110" width="128" height="80" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="panel" x="8" y="236" width="144" height="356" rx="8.6" fill="#121C2B" opacity="0.88"/>
+  <g id="tag">
+    <rect id="tag_bg" x="20" y="356.4" width="40" height="16" rx="8.0" fill="#FF7A29"/>
+    <text id="tag_label" font-family="Solstice Sans" font-size="9" font-weight="700" fill="#121C2B" text-anchor="start">
+      <tspan x="28.0" y="367.3" fill="#121C2B">NEW</tspan>
+    </text>
+  </g>
+  <rect id="logo" x="20" y="319.4" width="90" height="30" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="start">
+    <tspan x="20.0" y="391.2" fill="#FFFFFF">Run further</tspan>
+    <tspan x="20.0" y="408.4" fill="#FFFFFF">than the map</tspan>
+  </text>
+  <text id="body" font-family="Solstice Sans" font-size="11" font-weight="400" fill="#CED6E2" text-anchor="start">
+    <tspan x="20.0" y="427.9" fill="#CED6E2">Trail shoes tested on</tspan>
+    <tspan x="20.0" y="442.8" fill="#CED6E2">2,000 miles of real</tspan>
+    <tspan x="20.0" y="457.6" fill="#CED6E2">mountain terrain.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="20" y="468.6" width="120" height="40" rx="20.0" fill="#C6E84A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="13" font-weight="700" fill="#121C2B" text-anchor="middle">
+      <tspan x="80.0" y="492.8" fill="#121C2B">Find your fit</tspan>
+    </text>
+  </g>
+</svg>

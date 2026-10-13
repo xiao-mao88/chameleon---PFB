@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="fernway_split_image_story_1080x1920" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <rect id="bg" x="0" y="0" width="1080" height="1920" fill="#F4EFE6"/>
+  <rect id="photo" x="60" y="60" width="620" height="1120" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="detail_1" x="700" y="60" width="320" height="550" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="detail_2" x="700" y="630" width="320" height="550" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <g id="caption">
+    <rect id="caption_bg" x="90" y="1090" width="400" height="66" rx="33.0" fill="#FAF7F1"/>
+    <text id="caption_label" font-family="Solstice Sans" font-size="30" font-weight="700" fill="#1F3D2B" text-anchor="middle">
+      <tspan x="290.0" y="1132.6" fill="#1F3D2B">Monstera deliciosa</tspan>
+    </text>
+  </g>
+  <rect id="logo" x="80" y="1220.9" width="280" height="70" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="96" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="80.0" y="1417.4" fill="#1F3D2B">Grown for</tspan>
+    <tspan x="80.0" y="1523.0" fill="#1F3D2B">your space</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="80" y="1583.1" width="300" height="116" rx="58.0" fill="#1F3D2B"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="40" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="230.0" y="1653.9" fill="#FAF7F1">Shop now</tspan>
+    </text>
+  </g>
+</svg>

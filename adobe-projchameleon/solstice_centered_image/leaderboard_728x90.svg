@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="728" height="90" viewBox="0 0 728 90">
+  <rect id="bg_img" x="0" y="0" width="728" height="90" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="accent_1" x="4" y="50" width="36" height="36" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="accent_2" x="58" y="6" width="28" height="28" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="product_img" x="22" y="5" width="48" height="80" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="scrim" x="100" y="0" width="628" height="90" fill="#2E1B30" opacity="0.8"/>
+  <rect id="logo" x="112" y="31" width="84" height="28" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="30" font-weight="700" fill="#FFF7ED" text-anchor="start">
+    <tspan x="212.0" y="54.1" fill="#FFF7ED">Chase the Light</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="540" y="25" width="176" height="40" rx="20.0" fill="#FF6B4A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="12" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+      <tspan x="628.0" y="48.8" fill="#FFF7ED">Shop the Summer Line</tspan>
+    </text>
+  </g>
+</svg>

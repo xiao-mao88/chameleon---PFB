@@ -1,0 +1,157 @@
+{
+  "canvas": {
+    "width": 160,
+    "height": 600
+  },
+  "elements": [
+    {
+      "id": "bg",
+      "type": "shape",
+      "x": 0,
+      "y": 0,
+      "width": 160,
+      "height": 600,
+      "shape_type": "rectangle",
+      "fill_color": "rgba(46,27,48,1)",
+      "z_index": 0
+    },
+    {
+      "id": "glow",
+      "type": "shape",
+      "x": 10,
+      "y": 90,
+      "width": 140,
+      "height": 140,
+      "shape_type": "ellipse",
+      "fill_color": "rgba(255,140,90,1)",
+      "opacity": 0.25,
+      "z_index": 1
+    },
+    {
+      "id": "dot_1",
+      "type": "shape",
+      "x": 22,
+      "y": 120,
+      "width": 10,
+      "height": 10,
+      "shape_type": "ellipse",
+      "fill_color": "rgba(255,255,255,1)",
+      "opacity": 0.35,
+      "z_index": 2
+    },
+    {
+      "id": "dot_2",
+      "type": "shape",
+      "x": 128,
+      "y": 104,
+      "width": 8,
+      "height": 8,
+      "shape_type": "ellipse",
+      "fill_color": "rgba(255,255,255,1)",
+      "opacity": 0.35,
+      "z_index": 3
+    },
+    {
+      "id": "dot_3",
+      "type": "shape",
+      "x": 124,
+      "y": 200,
+      "width": 14,
+      "height": 14,
+      "shape_type": "ellipse",
+      "fill_color": "rgba(255,255,255,1)",
+      "opacity": 0.35,
+      "z_index": 4
+    },
+    {
+      "id": "product_img",
+      "type": "image",
+      "x": 38,
+      "y": 90,
+      "width": 84,
+      "height": 140,
+      "asset_id": "solstice_bottle.png",
+      "fit": "contain",
+      "z_index": 5
+    },
+    {
+      "id": "logo",
+      "type": "image",
+      "x": 20,
+      "y": 24,
+      "width": 120,
+      "height": 40,
+      "asset_id": "solstice_logo.png",
+      "fit": "contain",
+      "z_index": 6
+    },
+    {
+      "id": "headline",
+      "type": "text",
+      "x": 10,
+      "y": 262,
+      "width": 140,
+      "height": 118.8,
+      "content": "Chase the Light",
+      "font_family": "Solstice Serif",
+      "font_size": 36,
+      "font_weight": "bold",
+      "color": "rgba(255,247,237,1)",
+      "text_align": "center",
+      "line_height": 1.1,
+      "style_runs": [
+        {
+          "start": 6,
+          "end": 15,
+          "color": "rgba(255,193,59,1)"
+        }
+      ],
+      "z_index": 7
+    },
+    {
+      "id": "subhead",
+      "type": "text",
+      "x": 15,
+      "y": 402,
+      "width": 130,
+      "height": 50.7,
+      "content": "Botanical sparkling infusions, crafted for golden hour.",
+      "font_family": "Solstice Sans",
+      "font_size": 13,
+      "color": "rgba(232,214,224,1)",
+      "text_align": "center",
+      "line_height": 1.3,
+      "z_index": 8
+    },
+    {
+      "id": "cta_bg",
+      "type": "shape",
+      "x": 16,
+      "y": 486,
+      "width": 128,
+      "height": 60,
+      "shape_type": "rectangle",
+      "fill_color": "rgba(255,107,74,1)",
+      "group_id": "cta",
+      "corner_radius": 16,
+      "z_index": 9
+    },
+    {
+      "id": "cta_label",
+      "type": "text",
+      "x": 24.4,
+      "y": 499.2,
+      "width": 111.2,
+      "height": 33.6,
+      "content": "Shop the Summer Line",
+      "font_family": "Solstice Sans",
+      "font_size": 14,
+      "font_weight": "bold",
+      "color": "rgba(255,247,237,1)",
+      "text_align": "center",
+      "line_height": 1.2,
+      "group_id": "cta",
+      "z_index": 10
+    }
+  ]
+}

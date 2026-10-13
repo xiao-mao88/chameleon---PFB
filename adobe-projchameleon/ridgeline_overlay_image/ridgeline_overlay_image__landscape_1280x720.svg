@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ridgeline_overlay_image_landscape_1280x720" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect id="bg_photo" x="0" y="0" width="1280" height="720" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="inset_1" x="860" y="60" width="320" height="320" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="inset_2" x="720" y="320" width="320" height="320" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <g id="caption">
+    <rect id="caption_bg" x="50" y="50" width="280" height="48" rx="24.0" fill="#121C2B" opacity="0.88"/>
+    <text id="caption_label" font-family="Solstice Sans" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">
+      <tspan x="190.0" y="80.4" fill="#FFFFFF">Shot on Mount Rainier</tspan>
+    </text>
+  </g>
+  <rect id="panel" x="50" y="280" width="580" height="390" rx="23.4" fill="#121C2B" opacity="0.88"/>
+  <rect id="logo" x="94" y="326.4" width="156" height="52" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="58" font-weight="700" fill="#FFFFFF" text-anchor="start">
+    <tspan x="94.0" y="451.3" fill="#FFFFFF">Made for</tspan>
+    <tspan x="94.0" y="513.9" fill="#FFFFFF">the climb</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="94" y="549.6" width="190" height="74" rx="37.0" fill="#C6E84A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="26" font-weight="700" fill="#121C2B" text-anchor="middle">
+      <tspan x="189.0" y="594.9" fill="#121C2B">Gear up</tspan>
+    </text>
+  </g>
+</svg>

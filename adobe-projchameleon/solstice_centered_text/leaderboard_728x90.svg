@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="728" height="90" viewBox="0 0 728 90">
+  <rect id="bg" x="0" y="0" width="728" height="90" fill="#2E1B30"/>
+  <rect id="product_img" x="10" y="15" width="36" height="60" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="logo" x="54" y="34" width="66" height="22" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="eyebrow" font-family="Solstice Sans" font-size="10" font-weight="700" fill="#FFC13B" text-anchor="start">
+    <tspan x="132.0" y="20.1" fill="#FFC13B">NEW FOR SUMMER</tspan>
+  </text>
+  <text id="headline" font-family="Solstice Serif" font-size="22" font-weight="700" fill="#FFF7ED" text-anchor="start">
+    <tspan x="132.0" y="45.0" fill="#FFF7ED">Chase the Light</tspan>
+  </text>
+  <text id="subhead" font-family="Solstice Sans" font-size="10" font-weight="400" fill="#E8D6E0" text-anchor="start">
+    <tspan x="132.0" y="62.8" fill="#E8D6E0">Botanical sparkling infusions,</tspan>
+    <tspan x="132.0" y="75.8" fill="#E8D6E0">crafted for golden hour.</tspan>
+  </text>
+  <text id="features" font-family="Solstice Sans" font-size="10" font-weight="400" fill="#FFF7ED" text-anchor="start">
+    <tspan x="376.0" y="26.2" fill="#FFF7ED">Real botanicals. No added sugar.</tspan>
+    <tspan x="376.0" y="39.2" fill="#FFF7ED">45 calories a can.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="572" y="25" width="146" height="40" rx="20.0" fill="#FF6B4A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="10" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+      <tspan x="645.0" y="48.2" fill="#FFF7ED">Shop the Summer Line</tspan>
+    </text>
+  </g>
+  <text id="footnote" font-family="Solstice Sans" font-size="10" font-weight="400" fill="#E8D6E0" text-anchor="start">
+    <tspan x="376.0" y="57.2" fill="#E8D6E0">Available at select retailers</tspan>
+    <tspan x="376.0" y="70.2" fill="#E8D6E0">while supplies last.</tspan>
+  </text>
+</svg>

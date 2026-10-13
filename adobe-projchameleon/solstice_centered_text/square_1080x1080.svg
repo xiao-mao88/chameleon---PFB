@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <rect id="bg" x="0" y="0" width="1080" height="1080" fill="#2E1B30"/>
+  <rect id="product_img" x="474.0" y="267.5" width="132" height="220" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="logo" x="435.0" y="177.5" width="210" height="70" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="eyebrow" font-family="Solstice Sans" font-size="24" font-weight="700" fill="#FFC13B" text-anchor="middle">
+    <tspan x="540.0" y="537.6" fill="#FFC13B">NEW FOR SUMMER</tspan>
+  </text>
+  <text id="headline" font-family="Solstice Serif" font-size="80" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+    <tspan x="540.0" y="621.9" fill="#FFF7ED">Chase the Light</tspan>
+  </text>
+  <text id="subhead" font-family="Solstice Sans" font-size="30" font-weight="400" fill="#E8D6E0" text-anchor="middle">
+    <tspan x="540.0" y="685.4" fill="#E8D6E0">Botanical sparkling infusions, crafted for golden hour.</tspan>
+  </text>
+  <text id="features" font-family="Solstice Sans" font-size="24" font-weight="400" fill="#FFF7ED" text-anchor="middle">
+    <tspan x="540.0" y="734.6" fill="#FFF7ED">Real botanicals. No added sugar. 45 calories a can.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="320.0" y="770.5" width="440" height="84" rx="42.0" fill="#FF6B4A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="28" font-weight="700" fill="#FFF7ED" text-anchor="middle">
+      <tspan x="540.0" y="821.5" fill="#FFF7ED">Shop the Summer Line</tspan>
+    </text>
+  </g>
+  <text id="footnote" font-family="Solstice Sans" font-size="20" font-weight="400" fill="#E8D6E0" text-anchor="middle">
+    <tspan x="540.0" y="895.9" fill="#E8D6E0">Available at select retailers while supplies last.</tspan>
+  </text>
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ridgeline_overlay_text_square_1080x1080" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <rect id="bg_photo" x="0" y="0" width="1080" height="1080" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="panel" x="60" y="60" width="720" height="960" rx="43.2" fill="#121C2B" opacity="0.9"/>
+  <rect id="divider" x="110" y="573.2" width="54" height="3" fill="#C6E84A"/>
+  <rect id="logo" x="110" y="204.9" width="168" height="56" fill="#121C2B" fill-opacity="0.18" stroke="#121C2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="eyebrow" font-family="Solstice Sans" font-size="20" font-weight="700" fill="#C6E84A" text-anchor="start">
+    <tspan x="110.0" y="303.3" fill="#C6E84A">SPRING TRAIL SERIES</tspan>
+  </text>
+  <text id="headline" font-family="Solstice Serif" font-size="54" font-weight="700" fill="#FFFFFF" text-anchor="start">
+    <tspan x="110.0" y="367.3" fill="#FFFFFF">Five races.</tspan>
+    <tspan x="110.0" y="425.7" fill="#FFFFFF">One season.</tspan>
+    <tspan x="110.0" y="484.0" fill="#FFFFFF">Every kind</tspan>
+    <tspan x="110.0" y="542.3" fill="#FFFFFF">of weather.</tspan>
+  </text>
+  <text id="body" font-family="Solstice Sans" font-size="23" font-weight="400" fill="#CED6E2" text-anchor="start">
+    <tspan x="110.0" y="618.1" fill="#CED6E2">Run 10K to 50K courses through three state parks,</tspan>
+    <tspan x="110.0" y="649.1" fill="#CED6E2">with aid stations every five miles.</tspan>
+  </text>
+  <text id="details" font-family="Solstice Sans" font-size="21" font-weight="700" fill="#FFFFFF" text-anchor="start">
+    <tspan x="110.0" y="694.2" fill="#FFFFFF">Registration closes April 30. Entry</tspan>
+    <tspan x="110.0" y="722.5" fill="#FFFFFF">includes a timing chip and finisher medal.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="110" y="753.0" width="420" height="78" rx="39.0" fill="#C6E84A"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="28" font-weight="700" fill="#121C2B" text-anchor="middle">
+      <tspan x="320.0" y="801.0" fill="#121C2B">Register for the series</tspan>
+    </text>
+  </g>
+  <text id="footnote" font-family="Solstice Sans" font-size="17" font-weight="400" fill="#CED6E2" text-anchor="start">
+    <tspan x="110.0" y="869.5" fill="#CED6E2">Races may be rescheduled for safety.</tspan>
+  </text>
+</svg>

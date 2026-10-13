@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="fernway_split_even_leaderboard_728x90" width="728" height="90" viewBox="0 0 728 90">
+  <rect id="bg" x="0" y="0" width="728" height="90" fill="#F4EFE6"/>
+  <rect id="color_block" x="150" y="0" width="8" height="90" fill="#A9BFA0"/>
+  <rect id="photo" x="0" y="0" width="150" height="90" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="inset_img" x="6" y="46" width="38" height="38" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <g id="badge">
+    <ellipse id="badge_bg" cx="145.0" cy="45.0" rx="33.0" ry="33.0" fill="#B04E28"/>
+    <text id="badge_label" font-family="Solstice Sans" font-size="14" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="145.0" y="42.5" fill="#FAF7F1">20%</tspan>
+      <tspan x="145.0" y="56.5" fill="#FAF7F1">off</tspan>
+    </text>
+  </g>
+  <rect id="logo" x="192" y="9" width="80" height="20" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="15" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="192.0" y="46.0" fill="#1F3D2B">Bring the outdoors in, one leaf at a time</tspan>
+  </text>
+  <text id="body" font-family="Solstice Sans" font-size="10" font-weight="400" fill="#3A5242" text-anchor="start">
+    <tspan x="192.0" y="65.0" fill="#3A5242">Healthy plants delivered to your door, with</tspan>
+    <tspan x="192.0" y="78.5" fill="#3A5242">care guides written by real gardeners.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="592" y="25" width="124" height="40" rx="20.0" fill="#1F3D2B"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="14" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="654.0" y="49.5" fill="#FAF7F1">Shop plants</tspan>
+    </text>
+  </g>
+</svg>

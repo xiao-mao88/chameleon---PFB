@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="fernway_split_shape_banner_1600x400" width="1600" height="400" viewBox="0 0 1600 400">
+  <rect id="bg" x="0" y="0" width="1600" height="400" fill="#F4EFE6"/>
+  <rect id="panel" x="30" y="30" width="700" height="340" rx="27.2" fill="#A9BFA0"/>
+  <ellipse id="ring" cx="591.85" cy="106.55000000000001" rx="73.95" ry="73.95" fill="none" fill-opacity="0.0" stroke="#B04E28" stroke-width="2.7"/>
+  <rect id="capsule" x="163.0" y="81.0" width="434.0" height="238.0" rx="119.0" fill="#1F3D2B"/>
+  <rect id="photo" x="234.4" y="104.8" width="291.2" height="190.4" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <ellipse id="circle_1" cx="591.9" cy="106.5" rx="51.0" ry="51.0" fill="#B04E28"/>
+  <ellipse id="circle_2" cx="165.9" cy="304.5" rx="28.9" ry="28.9" fill="#DEAA46"/>
+  <rect id="rule" x="780" y="151.0" width="50" height="6" fill="#B04E28"/>
+  <rect id="logo" x="780" y="95.0" width="152" height="38" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="headline" font-family="Solstice Serif" font-size="60" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="780.0" y="225.2" fill="#1F3D2B">Fresh plants</tspan>
+    <tspan x="780.0" y="291.2" fill="#1F3D2B">every week</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="1400" y="165" width="160" height="70" rx="35.0" fill="#1F3D2B"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="28" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="1480.0" y="209.0" fill="#FAF7F1">Shop</tspan>
+    </text>
+  </g>
+</svg>

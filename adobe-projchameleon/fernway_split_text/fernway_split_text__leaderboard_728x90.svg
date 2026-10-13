@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="fernway_split_text_leaderboard_728x90" width="728" height="90" viewBox="0 0 728 90">
+  <rect id="bg" x="0" y="0" width="728" height="90" fill="#F4EFE6"/>
+  <rect id="photo" x="0" y="0" width="110" height="90" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <rect id="accent_bar" x="122" y="29.6" width="20" height="2" fill="#B04E28"/>
+  <rect id="logo" x="122" y="9.6" width="64" height="16" fill="#1F3D2B" fill-opacity="0.18" stroke="#1F3D2B" stroke-opacity="0.5" stroke-dasharray="8 6"/>
+  <text id="eyebrow" font-family="Solstice Sans" font-size="10" font-weight="700" fill="#B04E28" text-anchor="start">
+    <tspan x="122.0" y="44.8" fill="#B04E28">PLANT CARE, SIMPLIFIED</tspan>
+  </text>
+  <text id="headline" font-family="Solstice Serif" font-size="14" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="122.0" y="61.8" fill="#1F3D2B">Never guess when</tspan>
+    <tspan x="122.0" y="77.2" fill="#1F3D2B">to water again</tspan>
+  </text>
+  <text id="body" font-family="Solstice Sans" font-size="10" font-weight="400" fill="#3A5242" text-anchor="start">
+    <tspan x="344.0" y="19.8" fill="#3A5242">Every Fernway plant ships with a</tspan>
+    <tspan x="344.0" y="33.2" fill="#3A5242">care card and watering reminders</tspan>
+    <tspan x="344.0" y="46.8" fill="#3A5242">matched to the light in your home.</tspan>
+  </text>
+  <text id="perks" font-family="Solstice Sans" font-size="10" font-weight="700" fill="#1F3D2B" text-anchor="start">
+    <tspan x="344.0" y="63.2" fill="#1F3D2B">Free delivery over $40. 30-day</tspan>
+    <tspan x="344.0" y="76.7" fill="#1F3D2B">health guarantee. Pet-safe options.</tspan>
+  </text>
+  <g id="cta">
+    <rect id="cta_bg" x="576" y="12.0" width="142" height="36" rx="18.0" fill="#1F3D2B"/>
+    <text id="cta_label" font-family="Solstice Sans" font-size="11" font-weight="700" fill="#FAF7F1" text-anchor="middle">
+      <tspan x="647.0" y="33.5" fill="#FAF7F1">Take the plant quiz</tspan>
+    </text>
+  </g>
+  <text id="footnote" font-family="Solstice Sans" font-size="10" font-weight="400" fill="#3A5242" text-anchor="start">
+    <tspan x="576.0" y="61.7" fill="#3A5242">Guarantee applies to plants</tspan>
+    <tspan x="576.0" y="74.7" fill="#3A5242">cared for as directed.</tspan>
+  </text>
+</svg>
