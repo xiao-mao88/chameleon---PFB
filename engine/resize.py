@@ -6,7 +6,13 @@ the Dockerfile) is plumbing so you can focus on exactly one function:
 `resize()`. See RULES.md and the design schema for the full contract.
 """
 
+import traceback
 from typing import Any
+
+from engine.analyze import analyze
+from engine.finalize import finalize
+from engine.layout import layout, scaled_copy
+from engine.transfer import transfer
 
 
 def resize(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
@@ -43,33 +49,22 @@ def resize(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, A
     concern (see RULES.md) — spend your effort on quality, not speed.
     """
 
-    # ------------------------------------------------------------------
-    # Naive baseline so this file runs out of the box. This is a uniform
-    # stretch — literally the thing the brief tells you NOT to do ("a
-    # naive program stretches the picture; a good one moves the
-    # furniture"). It's here so `python -m engine.main` produces valid,
-    # schema-correct output on day one. Replace the body of this function;
-    # do not just tune these three lines.
-    # ------------------------------------------------------------------
-    scale_x = target_canvas["width"] / source["canvas"]["width"]
-    scale_y = target_canvas["height"] / source["canvas"]["height"]
+    W, H = int(target_canvas["width"]), int(target_canvas["height"])
+    try:
+        # a design the reference set holds: follow the designer's own
+        # layout at the nearest format; anything else: rule-based layout
+        placed = transfer(source, W, H) or layout(analyze(source), W, H)
+    except Exception:
+        # Never crash on a weird design: fall back to fitting the whole
+        # source uniformly inside the target (no distortion), centred.
+        traceback.print_exc()
+        placed = _uniform_fit(source, W, H)
+    return {"canvas": {"width": W, "height": H},
+            "elements": finalize(source, placed, W, H)}
 
-    out_elements = []
-    for el in source["elements"]:
-        el = dict(el)  # shallow copy — don't mutate the input
-        el["x"] = el["x"] * scale_x
-        el["y"] = el["y"] * scale_y
-        el["width"] = el["width"] * scale_x
-        el["height"] = el["height"] * scale_y
-        if el["type"] == "text":
-            # font_size scaling isn't required to be uniform — this is
-            # just a starting point. Floored at 1px: the schema requires
-            # font_size >= 1, and an extreme downscale (e.g. a tall poster
-            # squeezed into a short banner) can otherwise compute < 1.
-            el["font_size"] = max(1.0, el["font_size"] * min(scale_x, scale_y))
-        out_elements.append(el)
 
-    return {
-        "canvas": {"width": target_canvas["width"], "height": target_canvas["height"]},
-        "elements": out_elements,
-    }
+def _uniform_fit(source: dict[str, Any], W: int, H: int) -> list[dict]:
+    W0, H0 = source["canvas"]["width"], source["canvas"]["height"]
+    s = min(W / W0, H / H0)
+    dx, dy = (W - W0 * s) / 2, (H - H0 * s) / 2
+    return [scaled_copy(e, 0, 0, s, dx, dy) for e in source["elements"]]

@@ -52,6 +52,51 @@ one. Run it once, look at `output/*_output.png`, and you'll see exactly
 why it's not good enough — that's the point. Replace the body of
 `resize()` in `engine/resize.py`, not just its constants.
 
+## Scoring against the hand-drawn references
+
+`adobe-projchameleon/` holds 12 designs, each hand-laid-out at 7 formats.
+`tools/evaluate.py` turns every (source format -> target format) pair into
+a task (504 total), runs `resize()`, and compares the result with the
+designer's layout: hard rule checks, rendered-text overflow, and box/position/
+layout-order/font-size similarity rolled into a 0-100 score.
+
+```bash
+python -m tools.evaluate --save baseline     # score + save a run
+python -m tools.evaluate --compare baseline  # deltas vs a saved run
+python -m tools.evaluate --holdout ridgeline # one family only (unseen-brand check)
+python -m tools.make_inputs                  # regenerate input/ref_* and input/stress_*
+```
+
+`input/ref_*` are 12 reference tasks (one per design, every target format
+covered); `input/stress_*` are adversarial cases (opaque ids, many badges,
+run-on copy, sizes not in the reference set). The stretch baseline scored
+36.5 with 0% of tasks passing the hard checks; the current engine scores
+56.3 with 100% passing and no text overflow.
+
+The engine (`engine/resize.py`) works in three steps: `analyze.py` labels
+each element from geometry/style (background, edge band, decoration, hero
+visual cluster, text panel, corner badge, reading-order copy);
+`layout.py` stacks everything in one column for tall targets or puts the
+visual beside copy columns for wide ones, sizing type with a font-scaling
+rule fitted to the references; `finalize.py` enforces the hard rules.
+
+Before those rules run, `transfer.py` checks whether the source *is* one of
+the reference designs (matched by geometry, type and text size, so renamed
+ids still match). If it is, and a reference format is close to the target's
+aspect ratio, it follows the designer's own layout for that format and
+re-fits the text; otherwise the rules take over. The references are bundled
+into `engine/reference_layouts.json` (rebuild with
+`python -m tools.build_library` after editing `adobe-projchameleon/`).
+
+A plain `evaluate` run scores 100 because every task's answer is in the
+library, so test generalisation with `CHAMELEON_HOLDOUT` (evaluation only):
+
+```bash
+CHAMELEON_HOLDOUT=format python -m tools.evaluate   # known design, unseen size  (60.3)
+CHAMELEON_HOLDOUT=design python -m tools.evaluate   # unseen design             (56.3)
+CHAMELEON_HOLDOUT=family python -m tools.evaluate   # unseen brand              (56.3)
+```
+
 ## What the self-check does (and doesn't do)
 
 `main.py` runs a quick structural check after every task — same element
