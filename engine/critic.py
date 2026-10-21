@@ -15,9 +15,11 @@ logo's transparent margin isn't touching the logo.
 
 unreadable(): texts set below the readability floors (7px, or 9px for the
 headline) - what the renderer will draw too small to read.
+key_copy_unreadable(): the same for the copy that matters most (headline,
+standalone buttons), at 7px.
 """
 
-from engine.analyze import drawn_box as drawn, headline_id
+from engine.analyze import analyze, drawn_box as drawn, headline_id
 from engine.assets import ink_box
 
 MIN_READABLE = 7.0          # every text: below this the renderer's text can't be read
@@ -89,3 +91,15 @@ def unreadable_texts(source_elements: list[dict], elements: list[dict]) -> list[
 
 def unreadable(source_elements: list[dict], elements: list[dict]) -> int:
     return len(unreadable_texts(source_elements, elements))
+
+
+def key_copy_unreadable(source: dict, elements: list[dict]) -> list[str]:
+    """Ids of the headline's and standalone buttons' texts (Unit.role) set
+    below MIN_READABLE: the copy that must still read on a format too small
+    for all of it."""
+    a = analyze(source)
+    units = a.flow + [u for u, _ in a.corner] + a.visual_parts
+    key = {e["id"] for u in units if u.role in ("headline", "action")
+           for e in u.els if e["type"] == "text"}
+    return [e["id"] for e in elements
+            if e["id"] in key and e.get("font_size", 0) < MIN_READABLE - 1e-6]

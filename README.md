@@ -43,7 +43,9 @@ tuned to a particular design or size.
 
    Text sizes scale with the canvas, then shrink until everything fits. Text
    never goes below 9px (headline) or 7px (everything else) if anything else
-   can give way. If the first arrangement leaves text unreadable or
+   can give way. When a format is too small for all the copy to be readable,
+   the less important text gives way first, so the headline and the call to
+   action stay readable. If the first arrangement leaves text unreadable or
    overlapping, every alternative is tried, and `critic.py` picks the best.
 3. **Finalize** (`finalize.py`): a last pass enforcing the hard rules
    (every element once, proportions kept, everything on the canvas).
@@ -71,13 +73,22 @@ them.
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
 | **Now** | **57.3** | 100% | 100% | **100%** | **100%** |
 
-All tests pass. The slowest single resize takes under 5 seconds.
+On the tiniest web banners, the headline and call to action stay readable
+in every design:
+
+| 97 designs resized to | 320×50 | 320×100 | 468×60 |
+|---|---|---|---|
+| Headline and CTA readable | 100% (was 78%) | 100% (was 95%) | 100% (was 95%) |
+| All text readable | 77% | 95% | 95% |
+
+All tests pass. The slowest single resize takes about 6 seconds.
 
 ## Known limitations
 
 - **Tiny formats with lots of text.** In a 320×50 banner, some designs' copy
-  can't fit at a readable size, so it shrinks anyway (82% of those cases
-  stay readable). The tests list these cases and why.
+  can't all fit at a readable size. The headline and CTA stay readable, and
+  the rest shrinks below 7px. In a 100×100 tile even the headline can't
+  always fit. The tests list these cases and why.
 - **Letter-spacing can be reduced** to make text fit. Text is never cut off.
 - **The similarity score is a proxy.** It measures closeness to one
   set of hand-made choices (our own, not official). The official judge scores the rendered image.

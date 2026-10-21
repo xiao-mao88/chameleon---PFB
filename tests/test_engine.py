@@ -37,7 +37,7 @@ from functools import lru_cache
 from pathlib import Path
 from unittest import mock
 
-from engine.critic import MIN_HEADLINE as MIN_PRIMARY, MIN_READABLE
+from engine.critic import MIN_HEADLINE as MIN_PRIMARY, MIN_READABLE, key_copy_unreadable
 from engine.finalize import extent
 from engine.resize import resize
 from engine.textmeasure import measure_text
@@ -94,6 +94,18 @@ KNOWN_LIMITATIONS = {
     ("novel_rotated_all", "mobile_banner"):
         "a 30°-rotated headline in 320x50: at 9px its rotated bounds are 42px "
         "tall at best, the strip has 40px",
+}
+
+# Cases where even the headline and standalone buttons can't reach 7px.
+_TILE = ("in a 100x100 tile the headline and CTA alone need 48% of the canvas "
+         "at 7px, before the visual, badges and the rest of the copy")
+_RUN_ON = "one unbreakable word is 112px wide at 7px"
+KEY_COPY_LIMITS = {
+    ("novel_letter_spacing", "app_icon_tile"): _TILE,
+    ("novel_missing_asset", "app_icon_tile"): _TILE,
+    ("sample_level3", "app_icon_tile"): _TILE,
+    ("novel_run_on_copy", "app_icon_tile"): _RUN_ON + ": the tile is 100px wide",
+    ("novel_run_on_copy", "skyscraper"): _RUN_ON + ": the strip is 120px wide with margins",
 }
 
 
@@ -392,6 +404,22 @@ class EngineTest(unittest.TestCase):
                 self.assertNotEqual(readability_checks(src, out), [],
                                     "fixed - remove it from KNOWN_LIMITATIONS")
 
+    def test_key_copy_readable(self):
+        """Even where not all copy can be readable, the headline and
+        standalone buttons are: the rest of the copy gives way first."""
+        def check(src, W, H, out, _):
+            self.assertEqual(key_copy_unreadable(src, out["elements"]), [])
+        self.each(check, skip=KEY_COPY_LIMITS)
+
+    def test_key_copy_limits(self):
+        print(f"\nheadline/CTA limitations ({len(KEY_COPY_LIMITS)}):")
+        for (sname, tname), why in KEY_COPY_LIMITS.items():
+            print(f"  {sname} -> {tname}: {why}")
+            src, W, H, out, _ = self.results[(sname, tname)]
+            with self.subTest(source=sname, target=tname):
+                self.assertNotEqual(key_copy_unreadable(src, out["elements"]), [],
+                                    "fixed - remove it from KEY_COPY_LIMITS")
+
     def test_exemptions_are_few(self):
         """The readability exemption must stay the exception: only tiny
         formats, and only copy-heavy designs."""
@@ -453,9 +481,6 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(json.dumps(src, sort_keys=True), before)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class PartsTest(unittest.TestCase):
     """The engine's building blocks, on hand-made cases."""
@@ -510,3 +535,20 @@ class PartsTest(unittest.TestCase):
             self.assertNotEqual(collisions(a.elements, L._finish(a, colliding(a, W, H), W, H), W, H), [])
             out = L._layout(a, W, H)
         self.assertEqual(collisions(a.elements, out, W, H), [])
+
+    def test_floor_ladder(self):
+        """Strictest first, and each step no stricter than the last for any
+        role (the strip planners binary-search the graded steps on that)."""
+        from engine.layout import LADDER, NO_FLOOR, STRICTEST
+        self.assertEqual(list(LADDER), sorted(LADDER, reverse=True))
+        for stricter, looser in zip(LADDER, LADDER[1:]):
+            for role in ("headline", "action", "text"):
+                self.assertGreaterEqual(stricter.of(role), looser.of(role))
+        self.assertEqual([STRICTEST.of(r) for r in ("headline", "action", "text")],
+                         [MIN_PRIMARY] * 3)
+        self.assertTrue(all(LADDER[:-1]))
+        self.assertFalse(NO_FLOOR)
+
+
+if __name__ == "__main__":
+    unittest.main()

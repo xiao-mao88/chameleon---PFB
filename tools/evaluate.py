@@ -53,7 +53,7 @@ import traceback
 from collections import defaultdict
 from pathlib import Path
 
-from engine.critic import collisions, drawn as _drawn, unreadable_texts
+from engine.critic import collisions, drawn as _drawn, key_copy_unreadable, unreadable_texts
 from engine.textmeasure import text_overflow
 from tools.dataset import Pair, drawings, make_task, pairs
 
@@ -352,10 +352,11 @@ def evaluate_size(resize, drawing, W: int, H: int) -> dict:
         output = resize(json.loads(json.dumps(source)), dict(target))
     except Exception:
         return dict(row, hard=["crashed: " + traceback.format_exc(limit=3)],
-                    overflow=[], unreadable=[])
+                    overflow=[], unreadable=[], key_unreadable=[])
     return dict(row, hard=hard_checks(source, output, target),
                 overflow=overflow_checks(output),
-                unreadable=readability_checks(source, output))
+                unreadable=readability_checks(source, output),
+                key_unreadable=key_copy_unreadable(source, output["elements"]))
 
 
 def report_sizes(rows: list[dict]) -> dict:
@@ -368,10 +369,12 @@ def report_sizes(rows: list[dict]) -> dict:
         n = len(rs)
         out[name] = {"n": n, "valid": sum(not r["hard"] for r in rs) / n,
                      "no_overflow": sum(not r["overflow"] for r in rs) / n,
-                     "readable": sum(not r["unreadable"] for r in rs) / n}
+                     "readable": sum(not r["unreadable"] for r in rs) / n,
+                     "key_copy": sum(not r["key_unreadable"] for r in rs) / n}
         s = out[name]
         print(f"  {name:<22}{n:>4}  valid {s['valid']:4.0%}  "
-              f"no-overflow {s['no_overflow']:4.0%}  readable {s['readable']:4.0%}")
+              f"no-overflow {s['no_overflow']:4.0%}  readable {s['readable']:4.0%}  "
+              f"headline+CTA readable {s['key_copy']:4.0%}")
     return out
 
 
