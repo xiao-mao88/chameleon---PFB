@@ -792,7 +792,7 @@ def clear_of_bands(a: Analysis, W, H, k, m, x0, y0, cw, ch):
 
 
 def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int = 4) -> Plan:
-    W0, H0 = a.canvas
+    H0 = a.canvas[1]
     k = _k(a, W, H)
     m = margin(W, H)
     r = W / H
@@ -806,16 +806,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
     els: list[dict] = []
     flow = a.flow + corner_units
 
-    # Hero visual on the side it sat on in the source - even when it was
-    # mostly above/below the copy, a clear sideways offset decides (above-
-    # right stays right); only a visual squarely above/below the copy leads
-    # (left) when it came first.
-    vis_left = True
-    if a.visual is not None and flow:
-        fb = union(u.box for u in flow)
-        dx = (a.visual.cx - (fb[0] + fb[2]) / 2) / W0
-        dy = (a.visual.cy - (fb[1] + fb[3]) / 2) / H0
-        vis_left = dx <= 0 if abs(dx) >= min(abs(dy), SIDE_OFFSET) else dy <= 0
+    vis_left = _hero_left(a, flow)
     left, right = m, W - m
     if a.visual is not None:
         frac = vis_frac or (0.6 if r < 4 else 0.3)
@@ -849,35 +840,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         else:
             right = vx + vw * max(0.0, ib[0] - vb[0]) / bw - gap
 
-    # Columns: [lead images (strip only)] [main copy] [buttons (wide only)]
-    lead, main, action = [], [], []
-    # a button inside a text panel stays in the panel's column (strips
-    # excepted: there everything needs its own column)
-    in_panel = a.container_children if a.container and not strip else set()
-    first_button = next((i for i, u in enumerate(flow) if r >= 2.5 and u.is_button
-                         and not any(e["id"] in in_panel for e in u.els)), None)
-    def panel_side(u):
-        return any(e["id"] in a.container_children for e in u.els)
-
-    for i, u in enumerate(flow):
-        if (first_button is not None and i >= first_button and first_button >= 2
-                and panel_side(u) == panel_side(flow[first_button])):
-            action.append(u)          # CTA and whatever followed it (same side of the panel)
-        elif first_button == i:
-            action.append(u)
-        elif strip and not u.has_text and area(u.box) < 0.1 * W0 * H0:
-            lead.append(u)
-        else:
-            main.append(u)
-    if not main and action:
-        main, action = action, []
-    # copy outside the text panel must not share the panel's column (the
-    # panel is wrapped around that column and would run under it): it gets
-    # its own column at the far right
-    outside = []
-    if a.container is not None and any(panel_side(u) for u in main):
-        outside = [u for u in main if not panel_side(u)]
-        main = [u for u in main if panel_side(u)]
+    lead, main, action, outside = _split_columns(a, flow, strip, r)
 
     text_align = "left"
     ch_top = max(m, top + 0.5 * m) if not strip else max(2.0, 0.1 * H)
@@ -927,7 +890,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
     floor = min(floors_used, default=FLOORS[0])
     if floor < MIN_FONT:
         # copy only fits as unreadable type: spread it over more columns
-        units = [u for u in flow if u in lead or u in main or u in outside or u in action]
+        units = flow                # every column's units, in reading order
         panel = frozenset(a.container_children)
         alt = strip_columns(units, left, right, ch_top, ch, gap, column, max_cols, panel)
         if alt is not None and alt[0] > floor:
@@ -939,6 +902,56 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
                 els = els[:copy_start] + alt[2]
                 floor, f_main = alt[0], alt[1]
     return Plan(els + corner_els, _quality(a, f_main, els, W, H), floor)
+
+
+def _hero_left(a: Analysis, flow: list[Unit]) -> bool:
+    """Whether the hero visual goes left of the copy: the side it sat on in
+    the source - even when it was mostly above/below the copy, a clear
+    sideways offset decides (above-right stays right); only a visual
+    squarely above/below the copy leads (left) when it came first."""
+    if a.visual is None or not flow:
+        return True
+    W0, H0 = a.canvas
+    fb = union(u.box for u in flow)
+    dx = (a.visual.cx - (fb[0] + fb[2]) / 2) / W0
+    dy = (a.visual.cy - (fb[1] + fb[3]) / 2) / H0
+    return dx <= 0 if abs(dx) >= min(abs(dy), SIDE_OFFSET) else dy <= 0
+
+
+def _split_columns(a: Analysis, flow: list[Unit], strip: bool, r: float):
+    """Split the copy (reading order) into the wide-format columns:
+    (lead images - strips only, main copy, buttons - wide only, copy outside
+    the text panel). Every unit lands in exactly one of them."""
+    W0, H0 = a.canvas
+    lead, main, action = [], [], []
+    # a button inside a text panel stays in the panel's column (strips
+    # excepted: there everything needs its own column)
+    in_panel = a.container_children if a.container and not strip else set()
+    first_button = next((i for i, u in enumerate(flow) if r >= 2.5 and u.is_button
+                         and not any(e["id"] in in_panel for e in u.els)), None)
+    def panel_side(u):
+        return any(e["id"] in a.container_children for e in u.els)
+
+    for i, u in enumerate(flow):
+        if (first_button is not None and i >= first_button and first_button >= 2
+                and panel_side(u) == panel_side(flow[first_button])):
+            action.append(u)          # CTA and whatever followed it (same side of the panel)
+        elif first_button == i:
+            action.append(u)
+        elif strip and not u.has_text and area(u.box) < 0.1 * W0 * H0:
+            lead.append(u)
+        else:
+            main.append(u)
+    if not main and action:
+        main, action = action, []
+    # copy outside the text panel must not share the panel's column (the
+    # panel is wrapped around that column and would run under it): it gets
+    # its own column at the far right
+    outside = []
+    if a.container is not None and any(panel_side(u) for u in main):
+        outside = [u for u in main if not panel_side(u)]
+        main = [u for u in main if panel_side(u)]
+    return lead, main, action, outside
 
 
 def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
