@@ -37,6 +37,7 @@ except Exception:  # renderer/skia unavailable: rough estimate instead
 GAP_CAP = 0.06          # max source gap between copy items, as fraction of source height
 MIN_GAP = 0.012         # min gap between copy items, as fraction of target short side
 VISUAL_GAP = 0.04       # gap between hero visual and copy, fraction of short side
+SIDE_OFFSET = 0.2       # visual/copy centres this far apart sideways (fraction of width) keep their sides
 MIN_FONT = 9.0          # smallest font any reference uses; fitting won't go below it if it can help it
 MIN_READABLE = 7.0      # last floor before text is allowed to become unreadable
 FLOORS = (MIN_FONT, MIN_READABLE, 0.0)
@@ -777,15 +778,16 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
     els: list[dict] = []
     flow = a.flow + corner_units
 
-    # Hero visual on the side it sat on in the source; if the source
-    # stacked it above/below the copy, it leads (left) when it came first.
+    # Hero visual on the side it sat on in the source - even when it was
+    # mostly above/below the copy, a clear sideways offset decides (above-
+    # right stays right); only a visual squarely above/below the copy leads
+    # (left) when it came first.
     vis_left = True
     if a.visual is not None and flow:
         fb = union(u.box for u in flow)
-        vb = a.visual.box
         dx = (a.visual.cx - (fb[0] + fb[2]) / 2) / W0
         dy = (a.visual.cy - (fb[1] + fb[3]) / 2) / H0
-        vis_left = dx <= 0 if abs(dx) >= abs(dy) else dy <= 0
+        vis_left = dx <= 0 if abs(dx) >= min(abs(dy), SIDE_OFFSET) else dy <= 0
     left, right = m, W - m
     if a.visual is not None:
         frac = vis_frac or (0.6 if r < 4 else 0.3)
