@@ -156,8 +156,7 @@ class TextItem:
     def _fit_box(self, f: float, cw: float, floor: float = 0.0):
         key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
-            if floor and self.primary:
-                floor = max(floor, MIN_FONT)
+            floor = self._floor(floor)
             font = max(1.0, self.pref * f, floor)
             if is_tracked(self.el):
                 self._cache[key] = self._fit_tracked(font, cw)
@@ -165,9 +164,8 @@ class TextItem:
             tw, th, _ = measure(self.el, font, cw)
             if tw > cw:                       # one unbreakable word too wide
                 font = max(1.0, font * cw / tw * 0.98)
-                need = max(floor, MIN_FONT) if floor and self.primary else floor
-                if font < need and measure(self.el, need, cw)[0] <= cw:
-                    font = need                   # the shrink overshot the floor
+                if font < floor and measure(self.el, floor, cw)[0] <= cw:
+                    font = floor                  # the shrink overshot the floor
                 tw, th, _ = measure(self.el, font, cw)
             w = min(cw, tw + 0.02 * font + 2)
             # re-measure a hair narrower than the final box: output rounding
@@ -197,9 +195,12 @@ class TextItem:
         _, w, h = self._fit(f, cw, floor)
         return self._drawn(w, h)
 
+    def _floor(self, floor):
+        """The floor this text is held to: the headline never below MIN_FONT."""
+        return max(floor, MIN_FONT) if floor and self.primary else floor
+
     def font_ok(self, f, cw, floor):
-        need = max(floor, MIN_FONT) if floor and self.primary else floor
-        return self._fit(f, cw, floor)[0] >= need - 1e-6
+        return self._fit(f, cw, floor)[0] >= self._floor(floor) - 1e-6
 
     def place(self, x, y, f, cw, floor=0.0):
         font, w, h = self._fit(f, cw, floor)
