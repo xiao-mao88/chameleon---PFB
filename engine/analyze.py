@@ -38,16 +38,23 @@ def box_of(el: dict) -> Box:
     return el["x"], el["y"], el["x"] + el["width"], el["y"] + el["height"]
 
 
+def rotated_size(w: float, h: float, rotation) -> tuple[float, float]:
+    """Size a w x h box covers once rotated about its centre (the renderer
+    rotates that way): the larger of the box and its rotated bounds."""
+    r = math.radians(float(rotation or 0.0))
+    if not r:
+        return w, h
+    c, s = abs(math.cos(r)), abs(math.sin(r))
+    return max(w, w * c + h * s), max(h, w * s + h * c)
+
+
 def drawn_box(el: dict) -> Box:
     """What the element covers once drawn: its box, grown to the rotated box's
-    bounds when it is rotated (the renderer rotates about the centre)."""
+    bounds when it is rotated."""
     x0, y0, x1, y1 = box_of(el)
-    r = math.radians(float(el.get("rotation") or 0.0))
-    if not r:
+    if not el.get("rotation"):
         return x0, y0, x1, y1
-    w, h = x1 - x0, y1 - y0
-    c, s = abs(math.cos(r)), abs(math.sin(r))
-    rw, rh = max(w, w * c + h * s), max(h, w * s + h * c)
+    rw, rh = rotated_size(x1 - x0, y1 - y0, el["rotation"])
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     return cx - rw / 2, cy - rh / 2, cx + rw / 2, cy + rh / 2
 
@@ -76,7 +83,6 @@ def contains(outer: Box, inner: Box, tol: float = 1.0) -> bool:
 class Unit:
     """One or more elements that move together."""
     els: list[dict]
-    kind: str = "flow"          # see module docstring
     reflow: bool = False        # a lone text element: font/width re-flowed
     row: int | None = None      # units sharing a row id sat side by side (badge row)
     primary: bool = False       # holds the headline (first text at the largest size)
@@ -133,7 +139,6 @@ class Analysis:
     edge: list[dict]
     deco: list[dict]             # free decorations
     visual: Unit | None          # hero cluster (includes attached decos)
-    visual_core: Box | None      # hero bbox without attached decos
     visual_parts: list[Unit]     # text-bearing units the hero pulled in (badges, captions)
     container: Unit | None
     container_children: set[str]
@@ -270,7 +275,6 @@ def analyze(source: dict[str, Any]) -> Analysis:
                     visual_core[1] <= (d["y"] + d["height"] / 2) <= visual_core[3]]
         deco = [d for d in deco if d not in attached]
         visual_unit = Unit([e for u in visual for e in u.els] + attached)
-        visual_unit.kind = "visual"
         visual_parts = [u for u in visual if u.has_text]
         others = [u for u in others if u not in visual]
     else:
@@ -309,7 +313,7 @@ def analyze(source: dict[str, Any]) -> Analysis:
 
     return Analysis(
         canvas=(W, H), background=background, edge=edge, deco=deco,
-        visual=visual_unit, visual_core=visual_core, visual_parts=visual_parts,
+        visual=visual_unit, visual_parts=visual_parts,
         container=container,
         container_children={e["id"] for u in children for e in u.els},
         corner=corner, flow=flow, centered=centered,

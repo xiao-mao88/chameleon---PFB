@@ -27,20 +27,15 @@ from math import comb
 from dataclasses import dataclass, replace
 from itertools import combinations
 
-from engine.analyze import Analysis, Unit, area, box_of, rows_of, union, xy_order
-from engine.critic import collisions, unreadable, visible
-
-try:
-    from engine.textmeasure import measure_text
-except Exception:  # renderer/skia unavailable: rough estimate instead
-    measure_text = None
+from engine.analyze import Analysis, Unit, area, box_of, rotated_size, rows_of, union, xy_order
+from engine.critic import MIN_HEADLINE, MIN_READABLE, collisions, unreadable, visible
+from engine.textmeasure import measure_text
 
 GAP_CAP = 0.06          # max source gap between copy items, as fraction of source height
 MIN_GAP = 0.012         # min gap between copy items, as fraction of target short side
 VISUAL_GAP = 0.04       # gap between hero visual and copy, fraction of short side
 SIDE_OFFSET = 0.2       # visual/copy centres this far apart sideways (fraction of width) keep their sides
-MIN_FONT = 9.0          # smallest font any reference uses; fitting won't go below it if it can help it
-MIN_READABLE = 7.0      # last floor before text is allowed to become unreadable
+MIN_FONT = MIN_HEADLINE  # 9px: smallest font any reference uses; fitting won't go below it if it can help it
 FLOORS = (MIN_FONT, MIN_READABLE, 0.0)
 
 
@@ -54,10 +49,6 @@ def font_scale(k: float, rel: float) -> float:
     """
     rel = min(max(rel, 1e-3), 1.0)
     return math.exp(-0.039) * k ** (0.858 + 0.222 * math.log(rel))
-
-
-def _texts(unit) -> list[dict]:
-    return [e for e in unit.els if e["type"] == "text"]
 
 
 # --------------------------------------------------------------------------
@@ -111,29 +102,14 @@ def fit_tracking(el: dict, font: float, width: float, cap: float = 1.0):
 
 
 def is_tracked(el: dict) -> bool:
-    return bool(el.get("letter_spacing")) or bool(el.get("capitalize"))
+    return bool(el.get("letter_spacing"))
 
 
 def measure(el: dict, font: float, width: float) -> tuple[float, float, int]:
     """(text width, text height, lines) for el at this font size and box width.
     letter_spacing is taken as given - pass tracked(el, font) for a new size."""
-    if measure_text is not None:
-        try:
-            m = measure_text(el, font, width)
-            return m["text_width"], m["text_height"], m["lines"]
-        except Exception:
-            pass
-    # Fallback: average glyph ~0.55em, greedy wrap by words.
-    lh = float(el.get("line_height", 1.2))
-    words = str(el.get("content", "")).split(" ")
-    lines, cur, widest = 1, 0.0, 0.0
-    for w in words:
-        ww = 0.55 * font * (len(w) + 1)
-        if cur and cur + ww > width:
-            widest, lines, cur = max(widest, cur), lines + 1, ww
-        else:
-            cur += ww
-    return max(widest, cur), lines * font * lh, lines
+    m = measure_text(el, font, width)
+    return m["text_width"], m["text_height"], m["lines"]
 
 
 # --------------------------------------------------------------------------
@@ -153,15 +129,11 @@ class TextItem:
         self._cache: dict = {}
         self._styled: dict = {}     # (font, width, cap) -> el with fitted tracking
         self.track_cap = 1.0        # most tracking this item may keep (set by Column.solve)
-        r = math.radians(float(self.el.get("rotation") or 0.0))
-        self.rot = (abs(math.cos(r)), abs(math.sin(r))) if r else None
+        self.rot = self.el.get("rotation") or None
 
     def _drawn(self, w, h):
         """Bounds of a w x h box once rotated about its centre."""
-        if self.rot is None:
-            return w, h
-        c, s = self.rot
-        return max(w, w * c + h * s), max(h, w * s + h * c)
+        return rotated_size(w, h, self.rot) if self.rot else (w, h)
 
     def _fit(self, f: float, cw: float, floor: float = 0.0):
         if self.rot is None:
@@ -433,9 +405,6 @@ class LineItem:
         h = sum(max(h for _, _, h in ln) for ln in lines) + g * (len(lines) - 1)
         return w, h
 
-    def scale(self, f, cw, floor=0.0):
-        return self._fit(f, cw, floor)[1]
-
     def size(self, f, cw, floor=0.0):
         per, s = self._fit(f, cw, floor)
         if per == 0:
@@ -500,9 +469,8 @@ def _rigid_scale(els, k, max_fs):
 class VisualItem(RigidItem):
     """The hero cluster: scaled as one rigid block, no font floor."""
 
-    def __init__(self, unit: Unit, k: float, core):
+    def __init__(self, unit: Unit, k: float):
         self.unit, self.k, self.min_f = unit, k, 0.0
-        self.core = core
         self.small = None
 
 
@@ -526,12 +494,6 @@ def _item_box(item):
     return item.unit.box
 
 
-def _item_els(item):
-    if isinstance(item, LineItem):
-        return [e for u in item.units for e in u.els]
-    return item.unit.els
-
-
 def ink_insets(item) -> tuple[float, float]:
     """(top, bottom) transparent margins of a rigid item, as fractions of its
     height: images whose visible pixels stop short of their box. Re-flowed
@@ -542,7 +504,7 @@ def ink_insets(item) -> tuple[float, float]:
     h = b[3] - b[1]
     if h <= 0:
         return 0.0, 0.0
-    ib = union(visible(e) for e in _item_els(item))
+    ib = union(visible(e) for e in item.unit.els)
     return max(0.0, (ib[1] - b[1]) / h), max(0.0, (b[3] - ib[3]) / h)
 
 
@@ -777,7 +739,7 @@ def vertical(a: Analysis, W, H, fold_corners: bool = False) -> Plan:
     after = [u for u in a.flow if u not in before]
     items_b = make_items(before, k, align, a.max_font)
     items_a = make_items(after, k, align, a.max_font)
-    vis = VisualItem(a.visual, k * 1.15, a.visual_core) if a.visual else None
+    vis = VisualItem(a.visual, k * 1.15) if a.visual else None
     items = items_b + ([vis] if vis else []) + items_a
     gaps = source_gaps(items, H0)
     if vis:
@@ -1200,7 +1162,6 @@ def wrap_container(a: Analysis, placed: dict[str, dict], W, H, k) -> dict | None
     if not kids:
         return None
     kb = union(box_of(e) for e in kids)
-    src_kids = union(box_of(e) for e in a.container.els[1:]) if len(a.container.els) > 1 else None
     pad = 0.04 * min(W, H) + 2
     x0, y0 = max(0.0, kb[0] - pad), max(0.0, kb[1] - pad)
     x1, y1 = min(float(W), kb[2] + pad), min(float(H), kb[3] + pad)
@@ -1306,7 +1267,6 @@ def detach(a: Analysis, parts: list[Unit]) -> Analysis:
     if not parts or not any(e["type"] != "text" for e in rest):
         return a
     visual = Unit(rest)
-    visual.kind = "visual"
     W0, H0 = a.canvas
     return replace(a, visual=visual, visual_parts=[u for u in a.visual_parts if u not in parts],
                    flow=xy_order(a.flow + parts, W0, H0))

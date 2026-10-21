@@ -7,16 +7,12 @@ nothing off-canvas, images and circles in proportion, sane font sizes.
 import math
 from typing import Any
 
+from engine.analyze import rotated_size
+
 
 def extent(el: dict) -> tuple[float, float]:
-    """(width, height) the element covers on canvas: the larger of its box
-    and its box rotated about the centre (the renderer rotates that way)."""
-    w, h = el["width"], el["height"]
-    r = math.radians(float(el.get("rotation") or 0.0))
-    if not r:
-        return w, h
-    c, s = abs(math.cos(r)), abs(math.sin(r))
-    return max(w, w * c + h * s), max(h, w * s + h * c)
+    """(width, height) the element covers on canvas, rotation included."""
+    return rotated_size(el["width"], el["height"], el.get("rotation"))
 
 
 def _keeps_aspect(src: dict) -> bool:

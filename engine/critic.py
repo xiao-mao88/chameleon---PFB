@@ -17,20 +17,11 @@ unreadable(): texts set below the readability floors (7px, or 9px for the
 headline) - what the renderer will draw too small to read.
 """
 
-import math
-
+from engine.analyze import drawn_box as drawn
 from engine.assets import ink_box
 
-
-def drawn(e: dict) -> tuple[float, float, float, float]:
-    """Box once drawn (rotated about its centre)."""
-    x0, y0, w, h = e["x"], e["y"], e["width"], e["height"]
-    r = math.radians(float(e.get("rotation") or 0.0))
-    if r:
-        c, s = abs(math.cos(r)), abs(math.sin(r))
-        w, h = max(w, w * c + h * s), max(h, w * s + h * c)
-        x0, y0 = e["x"] + (e["width"] - w) / 2, e["y"] + (e["height"] - h) / 2
-    return x0, y0, x0 + w, y0 + h
+MIN_READABLE = 7.0          # every text: below this the renderer's text can't be read
+MIN_HEADLINE = 9.0          # the source's first text at its largest size
 
 
 def visible(e: dict) -> tuple[float, float, float, float]:
@@ -81,10 +72,6 @@ def collisions(source_elements: list[dict], elements: list[dict], W: float, H: f
             if ov > 4 and ov > 0.1 * min(_area(a), _area(b)):
                 out.append(f"{a['id']} collides with {b['id']} ({ov:.0f}px²)")
     return out
-
-
-MIN_READABLE = 7.0          # every text
-MIN_HEADLINE = 9.0          # the source's first text at its largest size
 
 
 def unreadable(source_elements: list[dict], elements: list[dict]) -> int:

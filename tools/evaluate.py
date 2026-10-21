@@ -53,7 +53,7 @@ import traceback
 from collections import defaultdict
 from pathlib import Path
 
-from engine.critic import collisions, drawn as _drawn
+from engine.critic import MIN_HEADLINE as MIN_PRIMARY, MIN_READABLE, collisions, drawn as _drawn
 from engine.textmeasure import text_overflow
 from tools.dataset import Pair, drawings, make_task, pairs
 
@@ -69,8 +69,6 @@ REQUIRED_BY_TYPE = {
 EDGE_TOL = 0.5           # px slack for on-canvas checks
 ASPECT_TOL = 0.05        # RULES.md: images in proportion within ~5%
 OVERFLOW_TOL = 2.0       # px of text spill before we flag it
-MIN_READABLE = 7.0       # px: below this no text survives the rendered PNG
-MIN_PRIMARY = 9.0        # px: the headline must stay comfortably readable
 CONTRAST_NORMAL = 4.5    # WCAG 2.x AA, normal text
 CONTRAST_LARGE = 3.0     # WCAG 2.x AA, large text: >= 18pt (24px), or >= 14pt (18.7px) bold
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "brand_kit" / "assets"
