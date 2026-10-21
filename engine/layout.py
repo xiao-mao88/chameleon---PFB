@@ -188,6 +188,9 @@ class TextItem:
             tw, th, _ = measure(self.el, font, cw)
             if tw > cw:                       # one unbreakable word too wide
                 font = max(1.0, font * cw / tw * 0.98)
+                need = max(floor, MIN_FONT) if floor and self.primary else floor
+                if font < need and measure(self.el, need, cw)[0] <= cw:
+                    font = need                   # the shrink overshot the floor
                 tw, th, _ = measure(self.el, font, cw)
             w = min(cw, tw + 0.02 * font + 2)
             # re-measure a hair narrower than the final box: output rounding
@@ -694,6 +697,7 @@ def vertical(a: Analysis, W, H, fold_corners: bool = False) -> Plan:
     corner_els, top, bottom = place_corners(a, W, H, k)
     x0, y0, cw = m, max(m, top + 0.5 * m), W - 2 * m
     ch = H - y0 - max(m, bottom + 0.5 * m)
+    x0, y0, cw, ch = clear_of_bands(a, W, H, k, m, x0, y0, cw, ch)
     align = "center" if a.centered else None
 
     # Visual inserted into the reading order where it sat in the source.
@@ -733,6 +737,31 @@ def vertical(a: Analysis, W, H, fold_corners: bool = False) -> Plan:
     return Plan(els + corner_els, quality, col.floor)
 
 
+def clear_of_bands(a: Analysis, W, H, k, m, x0, y0, cw, ch):
+    """Narrow the copy column so it doesn't run across a full-height side
+    panel that no copy sat on in the source, as long as at least 60% of its
+    width is left. (Full-width bands such as a horizon are handled by
+    snap_edges, which moves the band's edge instead of the copy.)"""
+    W0, H0 = a.canvas
+    copy = [e for u in a.flow for e in u.els]
+    for band in a.edge:
+        if any(area(_inter(box_of(e), box_of(band))) > 0 for e in copy):
+            continue                      # copy sat on this band: it may stay on it
+        b = _edge_place(band, W0, H0, W, H, k)
+        bx0, by0, bx1, by1 = box_of(b)
+        full_h = by0 <= 0.5 and by1 >= H - 0.5
+        full_w = bx0 <= 0.5 and bx1 >= W - 0.5
+        if full_h and not full_w:
+            if bx0 <= 0.5 and x0 < bx1 < x0 + cw:            # left panel
+                nx = bx1 + m
+                if x0 + cw - nx >= 0.6 * cw:
+                    cw, x0 = x0 + cw - nx, nx
+            elif bx1 >= W - 0.5 and x0 < bx0 < x0 + cw:      # right panel
+                if bx0 - m - x0 >= 0.6 * cw:
+                    cw = bx0 - m - x0
+    return x0, y0, cw, ch
+
+
 def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int = 4) -> Plan:
     W0, H0 = a.canvas
     k = _k(a, W, H)
@@ -765,6 +794,21 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         vw = a.visual.w * s
         vy = (H - a.visual.h * s) / 2
         vx = left if vis_left else right - vw
+        # stay clear of pinned corner items on the visual's side: fit between them
+        lo, hi = m, H - m
+        for e in corner_els:
+            ex0, ey0, ex1, ey1 = box_of(e)
+            if ex1 <= vx or ex0 >= vx + vw or ey1 <= vy or ey0 >= vy + a.visual.h * s:
+                continue
+            if (ey0 + ey1) / 2 < H / 2:
+                lo = max(lo, ey1 + 0.5 * m)
+            else:
+                hi = min(hi, ey0 - 0.5 * m)
+        if (lo, hi) != (m, H - m) and hi - lo > 0.4 * H:
+            s = min(s, (hi - lo) / a.visual.h)
+            vw = a.visual.w * s
+            vy = lo + (hi - lo - a.visual.h * s) / 2
+            vx = left if vis_left else right - vw
         els += place_rigid(a.visual, vx, vy, s)
         gap = VISUAL_GAP * min(W, H) + m * 0.5
         if vis_left:
@@ -779,9 +823,13 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
     in_panel = a.container_children if a.container and not strip else set()
     first_button = next((i for i, u in enumerate(flow) if r >= 2.5 and u.is_button
                          and not any(e["id"] in in_panel for e in u.els)), None)
+    def panel_side(u):
+        return any(e["id"] in a.container_children for e in u.els)
+
     for i, u in enumerate(flow):
-        if first_button is not None and i >= first_button and first_button >= 2:
-            action.append(u)          # CTA and whatever followed it
+        if (first_button is not None and i >= first_button and first_button >= 2
+                and panel_side(u) == panel_side(flow[first_button])):
+            action.append(u)          # CTA and whatever followed it (same side of the panel)
         elif first_button == i:
             action.append(u)
         elif strip and not u.has_text and area(u.box) < 0.1 * W0 * H0:
@@ -790,6 +838,13 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
             main.append(u)
     if not main and action:
         main, action = action, []
+    # copy outside the text panel must not share the panel's column (the
+    # panel is wrapped around that column and would run under it): it gets
+    # its own column at the far right
+    outside = []
+    if a.container is not None and any(panel_side(u) for u in main):
+        outside = [u for u in main if not panel_side(u)]
+        main = [u for u in main if panel_side(u)]
 
     text_align = "left"
     ch_top = max(m, top + 0.5 * m) if not strip else max(2.0, 0.1 * H)
@@ -805,7 +860,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
     floors_used = []
     quality_fs = []
     cols = []
-    for units, share in ((lead, 0.18), (action, 0.3)):
+    for units, share in ((lead, 0.18), (outside, 0.25), (action, 0.3)):
         if units:
             c = column(units, None)
             cw = share * (right - left)
@@ -839,18 +894,60 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
     floor = min(floors_used, default=FLOORS[0])
     if floor < MIN_FONT:
         # copy only fits as unreadable type: spread it over more columns
-        units = [u for u in flow if u in lead or u in main or u in action]
-        alt = strip_columns(units, left, right, ch_top, ch, gap, column, max_cols)
+        units = [u for u in flow if u in lead or u in main or u in outside or u in action]
+        panel = frozenset(a.container_children)
+        alt = strip_columns(units, left, right, ch_top, ch, gap, column, max_cols, panel)
         if alt is not None and alt[0] > floor:
             els = els[:copy_start] + alt[2]
             floor, f_main = alt[0], alt[1]
+        if floor < MIN_FONT:
+            alt = two_rows(units, left, right, ch_top, ch, gap, column, max_cols, panel)
+            if alt is not None and alt[0] > floor:
+                els = els[:copy_start] + alt[2]
+                floor, f_main = alt[0], alt[1]
     return Plan(els + corner_els, _quality(a, f_main, els, W, H), floor)
+
+
+def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
+    """Headline across the full copy width, everything else in columns
+    below it - for strips where the headline needs more width than any one
+    column can give (long words, long lines). Same return as strip_columns."""
+    head = next((i for i, u in enumerate(units) if u.primary), None)
+    if head is None or len(units) < 2:
+        return None
+    rest = units[:head] + units[head + 1:]
+    top = column([units[head]], None)
+    w = x1 - x0
+    row_gap = max(2.0, 0.04 * ch)
+    for floor in FLOORS[:-1]:
+        if top.min_width(ch, floor, w) is None:
+            continue
+        lo, hi = 1.0, ch                      # least height the headline needs
+        for _ in range(14):
+            mid = (lo + hi) / 2
+            if top.min_width(mid, floor, w) is not None:
+                hi = mid
+            else:
+                lo = mid
+        h1 = hi
+        below = ch - h1 - row_gap
+        if below <= 0:
+            continue
+        cols = strip_columns(rest, x0, x1, y + h1 + row_gap, below, gap, column, max_cols,
+                             panel)
+        if cols is None or cols[0] < floor:
+            continue
+        f = top.solve(w, h1, 1.0, floors=(floor,))
+        top.floor = floor
+        out = top.place(x0, y, w, h1, f, "left") + cols[2]
+        return floor, min(f, cols[1]), out
+    return None
 
 
 EXHAUSTIVE_SPLITS = 2000   # above this many ways to split the copy, use the DP
 
 
-def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4):
+def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
     """Lay reading-ordered units out as up to max_cols side-by-side columns
     on a thin strip, choosing the split that keeps text at the strictest
     readability floor, then the largest type. Returns (floor, f, elements)
@@ -858,21 +955,31 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4):
 
     Splits are contiguous runs of the reading order. Few units: every split
     is tried. Many units: for each column count, a DP finds the split with
-    the least total width (O(n^2 * columns) instead of combinatorial)."""
+    the least total width (O(n^2 * columns) instead of combinatorial).
+    A column never mixes copy inside the text panel (`panel`: element ids)
+    with copy outside it: the panel is re-wrapped around its column(s) and
+    would otherwise run under the outside copy."""
     n_units = len(units)
     cols_cache: dict = {}
     mw_cache: dict = {}
+    in_panel = [any(e["id"] in panel for e in u.els) for u in units]
 
     def col(i, j):
         if (i, j) not in cols_cache:
             cols_cache[(i, j)] = column(units[i:j], None)
         return cols_cache[(i, j)]
 
+    full = x1 - x0
+
     def mw(i, j, floor, avail):
-        key = (i, j, floor, avail)
+        """Least width units[i:j] need as one column (None: not within avail).
+        Computed once against the full strip width, whatever the column count."""
+        key = (i, j, floor)
         if key not in mw_cache:
-            mw_cache[key] = col(i, j).min_width(ch, floor, avail)
-        return mw_cache[key]
+            mixed = len(set(in_panel[i:j])) > 1
+            mw_cache[key] = None if mixed else col(i, j).min_width(ch, floor, full)
+        w = mw_cache[key]
+        return w if w is not None and w <= avail else None
 
     def splits(n, floor, avail):
         """Candidate splits into n columns, as bounds tuples."""
@@ -892,7 +999,7 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4):
                 for j in range(i + 1, n_units - (n - k) + 1):
                     w = mw(i, j, floor, avail)
                     if w is None:
-                        break           # longer runs only get taller
+                        break           # longer runs only get taller (or stay mixed)
                     if best[k - 1][i] + w < best[k][j]:
                         best[k][j], back[k][j] = best[k - 1][i] + w, i
         if best[n][n_units] == INF:
@@ -944,10 +1051,10 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4):
     g = slack / (len(cols) - 1) if len(cols) > 1 else 0.0
     x = x0 if len(cols) > 1 else x0 + 0.0
     out = []
-    for c, w, f in zip(cols, used, fs):
+    for c, w, u, f in zip(cols, widths, used, fs):
         c.floor = floor
-        out += c.place(x, y, w, ch, f, "left")
-        x += w + g
+        out += c.place(x, y, w, ch, f, "left")   # fitted at w: same line breaks
+        x += u + g
     return floor, f_min, out
 
 
@@ -1027,10 +1134,98 @@ def wrap_container(a: Analysis, placed: dict[str, dict], W, H, k) -> dict | None
     pad = 0.04 * min(W, H) + 2
     x0, y0 = max(0.0, kb[0] - pad), max(0.0, kb[1] - pad)
     x1, y1 = min(float(W), kb[2] + pad), min(float(H), kb[3] + pad)
+    # the padding must not run under copy that isn't part of the panel (a
+    # caption, a corner badge): trim the side facing it
+    kid_ids = {e["id"] for e in kids}
+    text_groups = {e.get("group_id") for e in placed.values()
+                   if e["type"] == "text" and e.get("group_id")}
+    for p in placed.values():
+        if p["id"] in kid_ids or p["id"] == src["id"] or not (
+                p["type"] == "text" or p.get("group_id") in text_groups - {None}):
+            continue
+        bx0, by0, bx1, by1 = box_of(p)
+        if bx1 <= x0 or bx0 >= x1 or by1 <= y0 or by0 >= y1:
+            continue
+        if by1 <= kb[1]:
+            y0 = max(y0, by1)
+        elif by0 >= kb[3]:
+            y1 = min(y1, by0)
+        elif bx1 <= kb[0]:
+            x0 = max(x0, bx1)
+        elif bx0 >= kb[2]:
+            x1 = min(x1, bx0)
     el = dict(src, x=x0, y=y0, width=x1 - x0, height=y1 - y0)
     if "corner_radius" in src:
         el["corner_radius"] = min(src["corner_radius"] * k, 0.5 * min(x1 - x0, y1 - y0))
     return el
+
+
+def _straddles(lo, hi, edge, pad=1.0) -> bool:
+    return lo + pad < edge < hi - pad
+
+
+def snap_edges(a: Analysis, els: list[dict], W, H) -> None:
+    """Copy must sit fully on or fully off an edge band (horizon, side
+    panel), never across the band's free edge. Move that edge (the shape,
+    never the copy) so each straddling item lands on the side it was on in
+    the source; give up on a band if that would leave it under 35% of its
+    size or flip another item's side."""
+    if not a.edge:
+        return
+    placed = {e["id"]: e for e in els}
+    groups_with_text = {e.get("group_id") for e in els if e["type"] == "text" and e.get("group_id")}
+    src = {e["id"]: e for u in a.flow + [u for u, _ in a.corner] + a.visual_parts for e in u.els}
+    src.update({e["id"]: e for e in a.edge})
+    copy_ids = [i for i, e in src.items() if i in placed and (
+        e["type"] == "text" or (e.get("group_id") and e.get("group_id") in groups_with_text))]
+    pad = 0.02 * min(W, H)
+
+    def on(c_id, band_id, el_by_id):
+        return area(_inter(box_of(el_by_id[c_id]), box_of(el_by_id[band_id]))) > 0
+
+    for band in a.edge:
+        pb = placed.get(band["id"])
+        if pb is None:
+            continue
+        x0, y0, x1, y1 = box_of(pb)
+        tol = 0.5
+        full_w = x0 <= tol and x1 >= W - tol
+        full_h = y0 <= tol and y1 >= H - tol
+        if full_w == full_h:
+            continue                      # a corner block or a full cover: no single free edge
+        lo_i, hi_i = (1, 3) if full_w else (0, 2)
+        glued_lo = (y0 if full_w else x0) <= tol
+        edge = (y1 if full_w else x1) if glued_lo else (y0 if full_w else x0)
+        size = (y1 - y0) if full_w else (x1 - x0)
+        want_on = {c: on(c, band["id"], src) for c in copy_ids}
+        straddlers = [c for c in copy_ids
+                      if _straddles(box_of(placed[c])[lo_i], box_of(placed[c])[hi_i], edge)]
+        if not straddlers:
+            continue
+        new = edge
+        for c in straddlers:
+            b = box_of(placed[c])
+            if glued_lo:
+                new = max(new, b[hi_i] + pad) if want_on[c] else min(new, b[lo_i] - pad)
+            else:
+                new = min(new, b[lo_i] - pad) if want_on[c] else max(new, b[hi_i] + pad)
+        new_size = (new - (y0 if full_w else x0)) if glued_lo else ((y1 if full_w else x1) - new)
+        limit = H if full_w else W
+        if not (0.35 * size <= new_size <= limit):
+            continue
+        trial = dict(pb)
+        if full_w:
+            trial.update(y=0.0 if glued_lo else new, height=new_size)
+        else:
+            trial.update(x=0.0 if glued_lo else new, width=new_size)
+        check = dict(placed, **{band["id"]: trial})
+        if all(on(c, band["id"], check) == want_on[c] or c not in straddlers
+               and on(c, band["id"], check) == on(c, band["id"], placed) for c in copy_ids):
+            pb.update(trial)
+
+
+def _inter(a, b):
+    return max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
 
 
 def detach(a: Analysis, parts: list[Unit]) -> Analysis:
@@ -1120,4 +1315,5 @@ def _layout(a: Analysis, W: int, H: int) -> list[dict]:
     cont = wrap_container(a, placed, W, H, k)
     if cont is not None:
         out.append(cont)
+    snap_edges(a, out, W, H)
     return out

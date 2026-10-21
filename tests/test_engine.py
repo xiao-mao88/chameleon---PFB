@@ -19,11 +19,13 @@ compare against, so these check what must hold for any design at any size:
   3. no rendered text overflow
   4. readability: headline >= 9px, all text >= 7px - unless the copy
      physically can't fit the canvas at those sizes (see copy_fits)
-  5. no unintended text/text overlap
+  5. no collisions: text newly over other text, or over an image or solid
+     shape it didn't overlap in the source (tools.evaluate.collision_checks)
   6. no crash and no fallback to the uniform fit
   7. determinism
   8. rotated elements stay on canvas as drawn (rotated about their centre)
   9. every case finishes in under MAX_SECONDS
+ 10. contrast (sampled: it renders): no text the layout pushed below WCAG AA
 """
 
 import copy
@@ -35,13 +37,12 @@ from functools import lru_cache
 from pathlib import Path
 from unittest import mock
 
-from engine.analyze import drawn_box
 from engine.finalize import extent
 from engine.resize import resize
 from engine.textmeasure import measure_text
 from tools.dataset import ROOT, drawings
-from tools.evaluate import (MIN_PRIMARY, MIN_READABLE, hard_checks, overflow_checks,
-                            readability_checks)
+from tools.evaluate import (MIN_PRIMARY, MIN_READABLE, collision_checks, contrast_checks,
+                            hard_checks, overflow_checks, readability_checks)
 
 INPUT_DIR = ROOT / "input"
 
@@ -76,6 +77,7 @@ CATALOGUE = {
 }
 
 MAX_SECONDS = 10.0
+CONTRAST_EVERY = 13     # render every 13th case for the contrast test
 
 
 # Readability cases the engine is known to miss, with the reason. Listed
@@ -85,9 +87,6 @@ KNOWN_LIMITATIONS = {
     ("novel_thirty_elements", "mobile_banner"):
         "10 chips + headline + CTA in 320x50: the strip planner can't fit the "
         "chip grid at 7px next to the copy",
-    ("novel_run_on_copy", "large_mobile_banner"):
-        "a 34-letter unbreakable word next to the hero visual: headline lands "
-        "at 8.9px, just under the 9px floor",
     ("novel_thirty_elements", "app_icon_tile"):
         "10 chips + headline + CTA in a 100x100 tile: the pills' padding alone "
         "outgrows the canvas at 7px",
@@ -334,34 +333,6 @@ def copy_fits(source: dict, W: int, H: int) -> bool:
     return need <= 0.5 * W * H
 
 
-def _box(e):
-    return drawn_box(e)
-
-
-def _overlap(a, b) -> float:
-    ax0, ay0, ax1, ay1 = _box(a)
-    bx0, by0, bx1, by1 = _box(b)
-    return max(0.0, min(ax1, bx1) - max(ax0, bx0)) * max(0.0, min(ay1, by1) - max(ay0, by0))
-
-
-def text_collisions(source: dict, output: dict) -> list[str]:
-    """Text boxes from different groups that overlap in the output but did
-    not overlap in the source (so overlap there was a design choice)."""
-    src = {e["id"]: e for e in source["elements"]}
-    texts = [e for e in output["elements"] if e["type"] == "text" and e.get("content")]
-    out = []
-    for i, a in enumerate(texts):
-        for b in texts[i + 1:]:
-            if a.get("group_id") and a.get("group_id") == b.get("group_id"):
-                continue
-            if _overlap(src[a["id"]], src[b["id"]]) > 0:
-                continue
-            ov = _overlap(a, b)
-            if ov > 0.1 * min(a["width"] * a["height"], b["width"] * b["height"]) and ov > 4:
-                out.append(f"{a['id']} overlaps {b['id']} ({ov:.0f}px²)")
-    return out
-
-
 def ellipse_checks(source: dict, output: dict) -> list[str]:
     src = {e["id"]: e for e in source["elements"]}
     out = []
@@ -435,15 +406,31 @@ class EngineTest(unittest.TestCase):
                         "only tiny (< 40k px²) or narrow (<= 320px wide) formats may be exempt")
         self.assertLessEqual(len(exempt), 0.05 * len(self.results))
 
-    def test_no_text_collisions(self):
+    def test_no_collisions(self):
         def check(src, W, H, out, _):
             if copy_fits(src, W, H):    # copy that can't fit is best effort
-                self.assertEqual(text_collisions(src, out), [])
+                self.assertEqual(collision_checks(src, out), [])
         self.each(check)
+
+    def test_contrast_sampled(self):
+        for (sname, tname), (src, W, H, out, _) in list(self.results.items())[::CONTRAST_EVERY]:
+            with self.subTest(source=sname, target=tname):
+                self.assertEqual(contrast_checks(out, src), [])
 
     def test_no_fallback(self):
         self.each(lambda src, W, H, out, fell_back: self.assertFalse(
             fell_back, "resize() raised and used the uniform fit"))
+
+    def test_layout_places_everything(self):
+        """layout() itself must place every source element: finalize() falls
+        back to the source geometry for a missing one, which passes the hard
+        checks but lands the element wherever it happened to be."""
+        from engine.analyze import analyze
+        from engine.layout import layout
+        for (sname, tname), (src, W, H, *_rest) in list(self.results.items())[::3]:
+            with self.subTest(source=sname, target=tname):
+                placed = {e["id"] for e in layout(analyze(copy.deepcopy(src)), W, H)}
+                self.assertEqual(sorted({e["id"] for e in src["elements"]} - placed), [])
 
     def test_rotated_on_canvas(self):
         self.each(lambda src, W, H, out, _: self.assertEqual(rotated_off_canvas(out), []))

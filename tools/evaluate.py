@@ -12,6 +12,7 @@ designer's own layout at the target size.
     python -m tools.evaluate --engine engine.resize:resize   # any callable
     python -m tools.evaluate --size 320x50 --size 1000x1500  # + unseen sizes
                                                   # (hard checks only: no answer)
+    python -m tools.evaluate --contrast 0.1       # + contrast on 10% of tasks (renders)
 
 Two kinds of result per task:
 
@@ -21,7 +22,10 @@ Two kinds of result per task:
     font_family untouched, font_size >= 1. Plus text overflow (rendered
     text spilling outside its box), which the official PNG judge will see,
     and readability: every text >= MIN_READABLE px and the source's
-    largest-font text (the headline) >= MIN_PRIMARY px.
+    largest-font text (the headline) >= MIN_PRIMARY px. Also counted (not
+    hard): collisions (text newly over other text, or over an image / solid
+    shape it didn't overlap in the source) and, with --contrast, WCAG
+    contrast of each text against what is rendered behind it.
 
   * Similarity to the reference, each 0..1 (higher is better):
       iou   mean box IoU per element
@@ -66,6 +70,9 @@ ASPECT_TOL = 0.05        # RULES.md: images in proportion within ~5%
 OVERFLOW_TOL = 2.0       # px of text spill before we flag it
 MIN_READABLE = 7.0       # px: below this no text survives the rendered PNG
 MIN_PRIMARY = 9.0        # px: the headline must stay comfortably readable
+CONTRAST_NORMAL = 4.5    # WCAG 2.x AA, normal text
+CONTRAST_LARGE = 3.0     # WCAG 2.x AA, large text: >= 18pt (24px), or >= 14pt (18.7px) bold
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "brand_kit" / "assets"
 
 
 # --------------------------------------------------------------------------
@@ -165,6 +172,136 @@ def readability_checks(source: dict, output: dict) -> list[str]:
     return problems
 
 
+def _drawn(e):
+    """Box once drawn (rotated about its centre)."""
+    x0, y0, w, h = e["x"], e["y"], e["width"], e["height"]
+    r = math.radians(float(e.get("rotation") or 0.0))
+    if r:
+        c, s = abs(math.cos(r)), abs(math.sin(r))
+        w, h = max(w, w * c + h * s), max(h, w * s + h * c)
+        x0, y0 = e["x"] + (e["width"] - w) / 2, e["y"] + (e["height"] - h) / 2
+    return x0, y0, x0 + w, y0 + h
+
+
+def _overlap(a, b) -> float:
+    ax0, ay0, ax1, ay1 = _drawn(a)
+    bx0, by0, bx1, by1 = _drawn(b)
+    return max(0.0, min(ax1, bx1) - max(ax0, bx0)) * max(0.0, min(ay1, by1) - max(ay0, by0))
+
+
+def _area(e) -> float:
+    return max(e["width"], 0.0) * max(e["height"], 0.0)
+
+
+def collision_checks(source: dict, output: dict) -> list[str]:
+    """Text that newly overlaps something it shouldn't: another text from a
+    different group, or a visible non-background image / solid shape. A pair
+    that already overlapped in the source was a design choice (text on its
+    panel, a caption on its photo) and is not counted, and neither is one
+    where an opaque shape drawn between the two covers the text (text on a
+    panel that hides the stripes behind it)."""
+    src = {e["id"]: e for e in source["elements"]}
+    W, H = output["canvas"]["width"], output["canvas"]["height"]
+    els = output["elements"]
+    texts = [e for e in els if e["type"] == "text" and e.get("content")]
+    others = [e for e in els if e["type"] != "text"
+              and _area(e) < 0.9 * W * H                       # not a background
+              and float(e.get("opacity", 1.0)) >= 0.4]          # not a faint decoration
+    z = {e["id"]: (e.get("z_index", n), n) for n, e in enumerate(els)}
+    covers = [e for e in others if float(e.get("opacity", 1.0)) >= 0.8]
+
+    def shielded(t, o):
+        lo, hi = sorted((z[t["id"]], z[o["id"]]))
+        tb = _drawn(t)
+        return any(lo < z[p["id"]] < hi and p is not o
+                   and _overlap(p, t) >= 0.95 * (tb[2] - tb[0]) * (tb[3] - tb[1])
+                   for p in covers)
+
+    out = []
+    for i, a in enumerate(texts):
+        for b in texts[i + 1:] + others:
+            if a.get("group_id") and a.get("group_id") == b.get("group_id"):
+                continue
+            if _overlap(src[a["id"]], src[b["id"]]) > 0:
+                continue
+            if shielded(a, b):
+                continue
+            ov = _overlap(a, b)
+            if ov > 4 and ov > 0.1 * min(_area(a), _area(b)):
+                out.append(f"{a['id']} collides with {b['id']} ({ov:.0f}px²)")
+    return out
+
+
+def _rgba(color: str) -> tuple[float, float, float]:
+    import re
+    nums = [float(v) for v in re.findall(r"[\d.]+", str(color))]
+    if str(color).startswith("#"):
+        h = str(color).lstrip("#")
+        nums = [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    return tuple((nums + [0, 0, 0])[:3])
+
+
+def _luminance(rgb):
+    """WCAG relative luminance of sRGB values 0-255 (array or tuple)."""
+    import numpy as np
+    c = np.asarray(rgb, dtype=float) / 255.0
+    c = np.where(c <= 0.03928, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * c[..., 0] + 0.7152 * c[..., 1] + 0.0722 * c[..., 2]
+
+
+def text_contrasts(design: dict, max_size: int = 768) -> dict[str, tuple[float, float]]:
+    """{text id: (worst-decile contrast ratio, WCAG AA threshold)}: render the
+    design without its text, then compare each text's colour with the pixels
+    behind its box (4.5:1 normal text, 3:1 large text)."""
+    import io
+    import numpy as np
+    from PIL import Image
+    from renderer.converter.convert import _get_renderer, convert_chameleon_to_crello
+
+    W, H = design["canvas"]["width"], design["canvas"]["height"]
+    texts = [e for e in design["elements"] if e["type"] == "text" and e.get("content")]
+    if not texts:
+        return {}
+    bare = dict(design, elements=[e for e in design["elements"] if e["type"] != "text"])
+    renderer = _get_renderer(str(ASSETS_DIR.parent / "fonts"))
+    example, _ = convert_chameleon_to_crello(bare, renderer.font_manager, str(ASSETS_DIR))
+    img = Image.open(io.BytesIO(renderer.render(example, max_size=max_size, format="png")))
+    px = np.asarray(img.convert("RGB"), dtype=float)
+    sx, sy = px.shape[1] / W, px.shape[0] / H
+    out = {}
+    for e in texts:
+        x0, y0, x1, y1 = _drawn(e)
+        box = px[max(0, int(y0 * sy)):max(1, int(math.ceil(y1 * sy))),
+                 max(0, int(x0 * sx)):max(1, int(math.ceil(x1 * sx)))]
+        if box.size == 0:
+            continue
+        lb = _luminance(box.reshape(-1, 3))
+        lt = float(_luminance(_rgba(e.get("color", "rgba(0,0,0,1)"))))
+        ratio = (np.maximum(lb, lt) + 0.05) / (np.minimum(lb, lt) + 0.05)
+        bold = str(e.get("font_weight", "")).lower() in ("bold", "700", "800", "900")
+        large = e["font_size"] >= 24 or (bold and e["font_size"] >= 18.7)
+        out[e["id"]] = (float(np.percentile(ratio, 10)),
+                        CONTRAST_LARGE if large else CONTRAST_NORMAL)
+    return out
+
+
+def contrast_checks(output: dict, source: dict | None = None) -> list[str]:
+    """Text below WCAG AA contrast against what is drawn behind it. With a
+    source, only text the layout made worse is counted: brand colours (white
+    on an orange button) are the design's choice, not the engine's."""
+    now = text_contrasts(output)
+    before = text_contrasts(source) if source is not None else {}
+    out = []
+    for i, (worst, need) in now.items():
+        if worst >= need:
+            continue
+        if i in before and worst >= before[i][0] - 0.5:
+            continue
+        was = f", source {before[i][0]:.1f}:1" if i in before else ""
+        out.append(f"{i}: low contrast {worst:.1f}:1 (< {need}:1{was})")
+    return out
+
+
 # --------------------------------------------------------------------------
 # Similarity to the reference
 # --------------------------------------------------------------------------
@@ -255,12 +392,14 @@ def evaluate_pair(resize, pair: Pair) -> dict:
         output = resize(json.loads(json.dumps(task["source"])), dict(task["target_canvas"]))
     except Exception:
         row.update(crashed=True, hard=["crashed: " + traceback.format_exc(limit=3)],
-                   overflow=[], unreadable=[], score=0.0, iou=0.0, pos=0.0, rel=0.0, font=0.0)
+                   overflow=[], unreadable=[], collisions=[], score=0.0, iou=0.0, pos=0.0, rel=0.0, font=0.0)
         return row
     row["crashed"] = False
     row["hard"] = hard_checks(task["source"], output, task["target_canvas"])
     row["overflow"] = overflow_checks(output)
     row["unreadable"] = readability_checks(task["source"], output)
+    row["collisions"] = collision_checks(task["source"], output)
+    row["output"] = output
     try:
         row.update(similarity(output, reference))
     except Exception:
@@ -310,6 +449,7 @@ def summarize(rows: list[dict]) -> dict:
         "valid": sum(not r["hard"] for r in rows) / n,
         "no_overflow": sum(not r["overflow"] for r in rows) / n,
         "readable": sum(not r.get("unreadable") for r in rows) / n,
+        "no_collision": sum(not r.get("collisions") for r in rows) / n,
         "crashed": sum(r["crashed"] for r in rows),
     }
 
@@ -324,7 +464,8 @@ def _fmt(s: dict, prev: dict | None = None) -> str:
             f"iou {s['iou']:.2f}  pos {s['pos']:.2f}  rel {s['rel']:.2f}  font {s['font']:.2f}  "
             f"valid {s['valid']:4.0%}{d('valid', 100):<8}"
             f"no-overflow {s['no_overflow']:4.0%}{d('no_overflow', 100):<8}"
-            f"readable {s.get('readable', 0):4.0%}{d('readable', 100)}")
+            f"readable {s.get('readable', 0):4.0%}{d('readable', 100):<8}"
+            f"no-collision {s.get('no_collision', 0):4.0%}{d('no_collision', 100)}")
 
 
 def report(rows: list[dict], prev: dict | None = None, worst: int = 10) -> dict:
@@ -344,8 +485,9 @@ def report(rows: list[dict], prev: dict | None = None, worst: int = 10) -> dict:
 
     problems = defaultdict(int)
     for r in rows:
-        for p in r["hard"] + r["overflow"] + r.get("unreadable", []):
-            kind = p.split(": ", 1)[-1].split(" by ")[0].split(" (")[0].split(" font ")[0]
+        for p in r["hard"] + r["overflow"] + r.get("unreadable", []) + r.get("collisions", []):
+            kind = (p.split(": ", 1)[-1].split(" by ")[0].split(" (")[0].split(" font ")[0]
+                    if " collides with " not in p else "collision")
             problems[kind] += 1
     if problems:
         print("\n== most common problems (occurrences) ==")
@@ -373,6 +515,8 @@ def main(argv=None) -> int:
     ap.add_argument("--show", metavar="TASK", help="print every problem for tasks matching TASK")
     ap.add_argument("--size", action="append", default=[], metavar="WxH",
                     help="also run every design (from each format) into this size; repeatable")
+    ap.add_argument("--contrast", type=float, default=0.0, metavar="FRACTION",
+                    help="render this fraction of tasks (every k-th) and check text contrast")
     args = ap.parse_args(argv)
 
     resize = load_engine(args.engine)
@@ -386,6 +530,21 @@ def main(argv=None) -> int:
         return 1
 
     rows = [evaluate_pair(resize, p) for p in selected]
+    if args.contrast > 0:
+        step = max(1, round(1 / args.contrast))
+        sampled = rows[::step]
+        by_task = {p.name: p for p in selected}
+        for r in sampled:
+            r["contrast"] = (contrast_checks(r["output"], by_task[r["task"]].source.load())
+                             if not r["crashed"] else [])
+        ok = sum(not r["contrast"] for r in sampled)
+        print(f"contrast: {ok}/{len(sampled)} sampled tasks have no text the layout pushed "
+              f"below WCAG AA ({ok / len(sampled):.0%})")
+        for r in sampled:
+            for c in r["contrast"]:
+                print(f"    {r['task']}: {c}")
+    for r in rows:
+        r.pop("output", None)
     prev = None
     if args.compare:
         prev = json.loads((RESULTS_DIR / f"{args.compare}.json").read_text())["summary"]
@@ -406,7 +565,8 @@ def main(argv=None) -> int:
         for r in rows_all:
             if args.show in r["task"]:
                 print(f"\n{r['task']}  score {r.get('score', float('nan')):.1f}")
-                for p in r["hard"] + r["overflow"] + r.get("unreadable", []):
+                for p in (r["hard"] + r["overflow"] + r.get("unreadable", [])
+                          + r.get("collisions", []) + r.get("contrast", [])):
                     print(f"  - {p}")
 
     if args.save:
