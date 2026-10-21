@@ -16,15 +16,15 @@ sqrt(target area / source area) — the rule that best matches the hand-drawn
 references) and the whole column shrinks together until it fits. Text never
 shrinks below a readability floor while the column can still fit by
 shrinking something else: small type stops at the floor and the headline,
-visuals and gaps keep shrinking. The floor is relaxed (MIN_FONT, then
-MIN_READABLE, then none) only when the copy can't fit even then. Buttons
+visuals and gaps keep shrinking. The floor is relaxed step by step (LADDER)
+only when the copy can't fit even then. Buttons
 that would get too small to read are re-wrapped around their label instead
 of being scaled as a block.
 """
 
 import math
 from math import comb
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 
 from engine.analyze import Analysis, Unit, area, box_of, rotated_size, rows_of, union, xy_order
@@ -36,7 +36,35 @@ MIN_GAP = 0.012         # min gap between copy items, as fraction of target shor
 VISUAL_GAP = 0.04       # gap between hero visual and copy, fraction of short side
 SIDE_OFFSET = 0.2       # visual/copy centres this far apart sideways (fraction of width) keep their sides
 MIN_FONT = MIN_HEADLINE  # 9px: smallest font any reference uses; fitting won't go below it if it can help it
-FLOORS = (MIN_FONT, MIN_READABLE, 0.0)
+
+
+@dataclass(frozen=True, order=True)
+class Floor:
+    """The least font size text may shrink to, per role (Unit.role).
+    Floors compare by strictness: the stricter one is the greater."""
+    strictness: int
+    headline: float = field(compare=False)
+    action: float = field(compare=False)     # a standalone button's label
+    text: float = field(compare=False)       # everything else
+
+    def of(self, role: str) -> float:
+        return getattr(self, role)
+
+    def __bool__(self) -> bool:              # False only for "no floor"
+        return self.headline > 0
+
+
+def _ladder(*levels) -> tuple[Floor, ...]:
+    return tuple(Floor(len(levels) - i, *lv) for i, lv in enumerate(levels))
+
+
+# Floors tried strictest first: copy takes the first one it fits under.
+LADDER = _ladder(
+    (MIN_FONT, MIN_FONT, MIN_FONT),
+    (MIN_FONT, MIN_READABLE, MIN_READABLE),
+    (0.0, 0.0, 0.0),                          # nothing fits: everything shrinks together
+)
+STRICTEST, NO_FLOOR = LADDER[0], LADDER[-1]
 
 
 def font_scale(k: float, rel: float) -> float:
@@ -124,7 +152,7 @@ class TextItem:
         fs = self.el["font_size"]
         self.pref = fs * font_scale(k, fs / max_fs)
         self.min_f = min(1.0, MIN_FONT / max(self.pref, 1e-6))
-        self.primary = unit.primary            # the headline keeps MIN_FONT
+        self.role = unit.role
         self.align = align
         self._cache: dict = {}
         self._styled: dict = {}     # (font, width, cap) -> el with fitted tracking
@@ -135,7 +163,7 @@ class TextItem:
         """Bounds of a w x h box once rotated about its centre."""
         return rotated_size(w, h, self.rot) if self.rot else (w, h)
 
-    def _fit(self, f: float, cw: float, floor: float = 0.0):
+    def _fit(self, f: float, cw: float, floor: Floor = NO_FLOOR):
         if self.rot is None:
             return self._fit_box(f, cw, floor)
         # rotated: of the boxes whose rotated bounds fit the column width,
@@ -153,19 +181,19 @@ class TextItem:
             self._cache[key] = best[1] if best else self._fit_box(f, 0.15 * cw, floor)
         return self._cache[key]
 
-    def _fit_box(self, f: float, cw: float, floor: float = 0.0):
+    def _fit_box(self, f: float, cw: float, floor: Floor = NO_FLOOR):
         key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
-            floor = self._floor(floor)
-            font = max(1.0, self.pref * f, floor)
+            need = floor.of(self.role)
+            font = max(1.0, self.pref * f, need)
             if is_tracked(self.el):
                 self._cache[key] = self._fit_tracked(font, cw)
                 return self._cache[key]
             tw, th, _ = measure(self.el, font, cw)
             if tw > cw:                       # one unbreakable word too wide
                 font = max(1.0, font * cw / tw * 0.98)
-                if font < floor and measure(self.el, floor, cw)[0] <= cw:
-                    font = floor                  # the shrink overshot the floor
+                if font < need and measure(self.el, need, cw)[0] <= cw:
+                    font = need                   # the shrink overshot the floor
                 tw, th, _ = measure(self.el, font, cw)
             w = min(cw, tw + 0.02 * font + 2)
             # re-measure a hair narrower than the final box: output rounding
@@ -191,18 +219,14 @@ class TextItem:
         self._styled[(font, w, self.track_cap)] = el
         return font, w, th + 0.15 * font
 
-    def size(self, f, cw, floor=0.0):
+    def size(self, f, cw, floor=NO_FLOOR):
         _, w, h = self._fit(f, cw, floor)
         return self._drawn(w, h)
 
-    def _floor(self, floor):
-        """The floor this text is held to: the headline never below MIN_FONT."""
-        return max(floor, MIN_FONT) if floor and self.primary else floor
-
     def font_ok(self, f, cw, floor):
-        return self._fit(f, cw, floor)[0] >= self._floor(floor) - 1e-6
+        return self._fit(f, cw, floor)[0] >= floor.of(self.role) - 1e-6
 
-    def place(self, x, y, f, cw, floor=0.0):
+    def place(self, x, y, f, cw, floor=NO_FLOOR):
         font, w, h = self._fit(f, cw, floor)
         el = dict(self._styled.get((font, w, self.track_cap), self.el))
         dw, dh = self._drawn(w, h)       # (x, y) is where the drawn bounds start
@@ -220,21 +244,24 @@ class RigidItem:
         self.k, floor = _rigid_scale(unit.els, k, max_fs)
         self.min_f = floor / self.k
         self.small = _smallest_font(unit.els)
+        self.role = unit.role
 
-    def scale(self, f, cw, floor=0.0):
+    def scale(self, f, cw, floor=NO_FLOOR):
         s = self.k * f
-        if self.small and floor:
-            s = max(s, floor / self.small)
+        need = floor.of(self.role)
+        if self.small and need:
+            s = max(s, need / self.small)
         return max(1e-3, min(s, cw / max(self.unit.w, 1e-6)))
 
-    def size(self, f, cw, floor=0.0):
+    def size(self, f, cw, floor=NO_FLOOR):
         s = self.scale(f, cw, floor)
         return self.unit.w * s, self.unit.h * s
 
     def font_ok(self, f, cw, floor):
-        return not self.small or self.small * self.scale(f, cw, floor) >= floor - 1e-6
+        return (not self.small
+                or self.small * self.scale(f, cw, floor) >= floor.of(self.role) - 1e-6)
 
-    def place(self, x, y, f, cw, floor=0.0):
+    def place(self, x, y, f, cw, floor=NO_FLOOR):
         return place_rigid(self.unit, x, y, self.scale(f, cw, floor))
 
 
@@ -266,12 +293,13 @@ class ButtonItem(RigidItem):
 
     def _reflow(self, f, cw, floor):
         rigid = self.k * f
-        if not self.compact and (not floor or
-                                 self.label["font_size"] * self.scale(f, cw, floor) >= floor - 1e-6):
+        need = floor.of(self.role)
+        if not self.compact and (not need or
+                                 self.label["font_size"] * self.scale(f, cw, floor) >= need - 1e-6):
             return None
         key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
-            font = max(floor, self.label["font_size"] * rigid, 1.0)
+            font = max(need, self.label["font_size"] * rigid, 1.0)
             px, py = self.pad_x * font, self.pad_y * font
             inner = max(cw - 2 * px, 1.0)
             lb, (tw, th, _) = fit_tracking(self.label, font, inner, self.track_cap)
@@ -296,16 +324,16 @@ class ButtonItem(RigidItem):
 
     def font_ok(self, f, cw, floor):
         r = self._reflow(f, cw, floor)
-        return super().font_ok(f, cw, floor) if r is None else r[0] >= floor - 1e-6
+        return super().font_ok(f, cw, floor) if r is None else r[0] >= floor.of(self.role) - 1e-6
 
-    def size(self, f, cw, floor=0.0):
+    def size(self, f, cw, floor=NO_FLOOR):
         r = self._reflow(f, cw, floor)
         if r is None:
             return super().size(f, cw, floor)
         _, px, py, lw, lh = r
         return lw + 2 * px, lh + 2 * py
 
-    def place(self, x, y, f, cw, floor=0.0):
+    def place(self, x, y, f, cw, floor=NO_FLOOR):
         r = self._reflow(f, cw, floor)
         if r is None:
             return super().place(x, y, f, cw, floor)
@@ -369,7 +397,7 @@ class LineItem:
         """(units per line, scale); 0 units per line = re-wrapped pills."""
         s = self.k * f
         if self.small and floor:
-            s = max(s, floor / self.small)
+            s = max(s, floor.text / self.small)
         if self.spilled:
             return 0, s
         w, _ = self._extent(len(self.units))
@@ -388,7 +416,7 @@ class LineItem:
 
     def _pill_lines(self, f, cw, floor):
         """Greedy-pack the re-wrapped pills into centred lines."""
-        g = 0.6 * floor if floor else max(self.gap * self.k * f, 2.0)
+        g = 0.6 * floor.text if floor else max(self.gap * self.k * f, 2.0)
         lines, cur, cur_w = [], [], 0.0
         for b in self.pills:
             w, h = b.size(f, cw, floor)
@@ -406,7 +434,7 @@ class LineItem:
         h = sum(max(h for _, _, h in ln) for ln in lines) + g * (len(lines) - 1)
         return w, h
 
-    def size(self, f, cw, floor=0.0):
+    def size(self, f, cw, floor=NO_FLOOR):
         per, s = self._fit(f, cw, floor)
         if per == 0:
             return self._pill_extent(f, cw, floor)
@@ -417,9 +445,9 @@ class LineItem:
         per, s = self._fit(f, cw, floor)
         if per == 0:
             return all(b.font_ok(f, cw, floor) for b in self.pills)
-        return not self.small or self.small * s >= floor - 1e-6
+        return not self.small or self.small * s >= floor.text - 1e-6
 
-    def place(self, x, y, f, cw, floor=0.0):
+    def place(self, x, y, f, cw, floor=NO_FLOOR):
         per, s = self._fit(f, cw, floor)
         out = []
         if per == 0:
@@ -472,7 +500,7 @@ class VisualItem(RigidItem):
 
     def __init__(self, unit: Unit, k: float):
         self.unit, self.k, self.min_f = unit, k, 0.0
-        self.small = None
+        self.small, self.role = None, "text"
 
 
 def make_items(units: list[Unit], k: float, align: str | None, max_fs: float):
@@ -533,7 +561,7 @@ class Column:
     gaps: list[float]           # source gaps between items
     k: float
     min_gap: float
-    floor: float = 0.0          # px: text in this column stays at or above it
+    floor: Floor = NO_FLOOR     # text in this column stays at or above it
     insets: list | None = None  # per item (top, bottom) transparent margins
 
     def heights(self, f, cw):
@@ -555,12 +583,12 @@ class Column:
     def width(self, f, cw):
         return max((it.size(f, cw, self.floor)[0] for it in self.items), default=0.0)
 
-    def solve(self, cw, ch, f_max=1.0, floors=FLOORS):
+    def solve(self, cw, ch, f_max=1.0, floors=LADDER):
         """Largest f <= f_max whose stacked height fits in ch.
 
         Everything shrinks together (hierarchy kept) while no text is at its
         floor. Text that reaches the floor stops there and the rest keeps
-        shrinking. Floors are tried strictest first (FLOORS); the first one
+        shrinking. Floors are tried strictest first (LADDER); the first one
         the copy can fit under is kept in self.floor.
         """
         if not self.items:
@@ -585,7 +613,7 @@ class Column:
                 break
             if floor:
                 self._set_cap(1.0)
-        if self.floor == 0.0:
+        if not self.floor:
             # no floor: the original rule - keep the smallest text at
             # MIN_FONT if that alone is enough, else shrink everything
             f_floor = min(f_max, max(it.min_f for it in self.items))
@@ -657,7 +685,7 @@ class Column:
 class Plan:
     elements: list[dict]
     quality: float
-    floor: float = FLOORS[0]    # strictest readability floor all copy fits under
+    floor: Floor = STRICTEST    # strictest readability floor all copy fits under
 
 
 def _k(a: Analysis, W, H):
@@ -682,7 +710,7 @@ def place_corners(a: Analysis, W, H, k):
         if b is not None and b.compact:
             # its label spilled out of the pill in the source: re-wrap it at
             # its natural size (or the floor), within the corner's share
-            floor = MIN_FONT if small * s < MIN_FONT else 0.0
+            floor = STRICTEST if small * s < MIN_FONT else NO_FLOOR
             cw = W - 2 * m if floor else max(0.35 * W, min(W - 2 * m, u.w * s))
             f = s / max(b.k, 1e-6)
             button = (b, floor, f, cw)
@@ -692,7 +720,7 @@ def place_corners(a: Analysis, W, H, k):
             # re-wrapped around a readable label) up to the canvas width
             cw = W - 2 * m
             if b is not None:
-                for floor in FLOORS[:-1]:
+                for floor in LADDER[:2]:      # corner badges never go below 7px
                     if b.font_ok(1e-3, cw, floor):
                         button = (b, floor, 1e-3, cw)
                         w, h = b.size(1e-3, cw, floor)
@@ -887,8 +915,8 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         els += c.place(x, ch_top, max(w, 1.0) if w < cw else cw, ch, f, "left")
         quality_fs.insert(0, f)
     f_main = min(quality_fs) if quality_fs else 1.0
-    floor = min(floors_used, default=FLOORS[0])
-    if floor < MIN_FONT:
+    floor = min(floors_used, default=STRICTEST)
+    if floor < STRICTEST:
         # copy only fits as unreadable type: spread it over more columns
         units = flow                # every column's units, in reading order
         panel = frozenset(a.container_children)
@@ -896,7 +924,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         if alt is not None and alt[0] > floor:
             els = els[:copy_start] + alt[2]
             floor, f_main = alt[0], alt[1]
-        if floor < MIN_FONT:
+        if floor < STRICTEST:
             alt = two_rows(units, left, right, ch_top, ch, gap, column, max_cols, panel)
             if alt is not None and alt[0] > floor:
                 els = els[:copy_start] + alt[2]
@@ -965,7 +993,7 @@ def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
     top = column([units[head]], None)
     w = x1 - x0
     row_gap = max(2.0, 0.04 * ch)
-    for floor in FLOORS[:-1]:
+    for floor in LADDER[:-1]:
         if top.min_width(ch, floor, w) is None:
             continue
         lo, hi = 1.0, ch                      # least height the headline needs
@@ -1061,7 +1089,7 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
         avail = x1 - x0 - gap * (n - 1)
         if avail <= 0:
             break
-        for floor in FLOORS[:-1]:
+        for floor in LADDER[:-1]:
             if best is not None and floor < best[0][0]:
                 break
             found = False
@@ -1348,7 +1376,7 @@ def _layout(a: Analysis, W: int, H: int) -> list[dict]:
     out = _finish(a, plan, W, H)
     best = (rank(plan, out, 1), out)
     _, n_small, n_bumps, _, _ = best[0]
-    if plan.floor >= MIN_FONT and n_small == 0 and n_bumps == 0:
+    if plan.floor == STRICTEST and n_small == 0 and n_bumps == 0:
         return out
     for alt in _candidates(a, W, H):
         alt_out = _finish(a, alt, W, H)

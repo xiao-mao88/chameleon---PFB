@@ -137,6 +137,17 @@ class Unit:
                 and shapes[0]["width"] >= 1.5 * shapes[0]["height"]
                 and len(texts[0].get("content", "")) <= 32)
 
+    @property
+    def role(self) -> str:
+        """How much its text matters when not all copy can be readable:
+        "headline", "action" (a standalone button - not one of a badge
+        row, which share one size) or "text"."""
+        if self.primary and self.reflow:
+            return "headline"
+        if self.is_button and self.row is None:
+            return "action"
+        return "text"
+
 
 @dataclass
 class Analysis:
