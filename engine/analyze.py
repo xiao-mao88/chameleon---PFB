@@ -141,6 +141,7 @@ class Analysis:
     flow: list[Unit]             # reading order
     centered: bool               # copy was centred on the canvas
     max_font: float              # largest source font size
+    elements: list[dict] = field(default_factory=list)   # the source elements, as given
 
 
 def _opacity(el: dict) -> float:
@@ -312,7 +313,8 @@ def analyze(source: dict[str, Any]) -> Analysis:
         container=container,
         container_children={e["id"] for u in children for e in u.els},
         corner=corner, flow=flow, centered=centered,
-        max_font=max((e["font_size"] for e in els if e["type"] == "text"), default=0.0))
+        max_font=max((e["font_size"] for e in els if e["type"] == "text"), default=0.0),
+        elements=els)
 
 
 def _gaps(units: list[Unit], axis: int) -> list[tuple[float, float]]:

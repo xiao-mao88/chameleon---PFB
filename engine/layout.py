@@ -28,6 +28,7 @@ from dataclasses import dataclass, replace
 from itertools import combinations
 
 from engine.analyze import Analysis, Unit, area, box_of, rows_of, union, xy_order
+from engine.critic import collisions, unreadable
 
 try:
     from engine.textmeasure import measure_text
@@ -1260,59 +1261,68 @@ def layout(a: Analysis, W: int, H: int) -> list[dict]:
         return out
     alt = _layout(b, W, H)
 
-    def unreadable(els):
-        return sum(e["type"] == "text" and e["font_size"] < MIN_READABLE for e in els)
+    return alt if unreadable(a.elements, alt) < unreadable(a.elements, out) else out
 
-    return alt if unreadable(alt) < unreadable(out) else out
+
+def _preferred(a: Analysis, W: int, H: int) -> Plan:
+    """The arrangement the rules pick for this target shape."""
+    r = W / H
+    if r < 0.9:
+        return vertical(a, W, H)
+    if r > 1.25:
+        return horizontal(a, W, H)
+    if a.visual is None:
+        return vertical(a, W, H)
+    # Near-square: centred designs stack, left-aligned designs go side by
+    # side (what the reference designers did).
+    W0, H0 = a.canvas
+    if W0 / H0 <= 1.3:
+        return vertical(a, W, H) if a.centered else horizontal(a, W, H)
+    # wide sources often left-align even centred designs: compare
+    v, h = vertical(a, W, H), horizontal(a, W, H)
+    return v if v.quality >= h.quality else h
+
+
+def _candidates(a: Analysis, W: int, H: int):
+    yield vertical(a, W, H)
+    if a.corner:
+        yield vertical(a, W, H, fold_corners=True)
+    yield horizontal(a, W, H)
+    if W / H > 1.25:
+        # a strip too small for the copy: give the hero visual less of the
+        # width and allow more columns
+        for frac in (0.18, 0.1):
+            yield horizontal(a, W, H, vis_frac=frac, max_cols=6)
 
 
 def _layout(a: Analysis, W: int, H: int) -> list[dict]:
-    r = W / H
-    if r < 0.9:
-        plan = vertical(a, W, H)
-        if plan.floor < MIN_FONT and a.corner:
-            alt = vertical(a, W, H, fold_corners=True)
-            if (alt.floor, alt.quality) > (plan.floor, plan.quality):
-                plan = alt
-    elif r > 1.25 or a.visual is None:
-        plan = horizontal(a, W, H) if r > 1.25 else vertical(a, W, H)
-        if r > 1.25 and plan.floor < MIN_FONT:
-            # a strip too small for the copy: give the hero visual less of
-            # the width and allow more columns before accepting tiny type
-            for frac in (0.18, 0.1):
-                alt = horizontal(a, W, H, vis_frac=frac, max_cols=6)
-                if (alt.floor, alt.quality) > (plan.floor, plan.quality):
-                    plan = alt
-                if plan.floor >= MIN_FONT:
-                    break
-    else:
-        # Near-square: centred designs stack, left-aligned designs go
-        # side by side (what the reference designers did).
-        W0, H0 = a.canvas
-        if W0 / H0 <= 1.3:
-            plan = vertical(a, W, H) if a.centered else horizontal(a, W, H)
-            if plan.floor < MIN_FONT:
-                # the usual arrangement can't keep the copy readable: try the others
-                alts = [horizontal(a, W, H) if a.centered else vertical(a, W, H)]
-                if a.corner:
-                    alts.append(vertical(a, W, H, fold_corners=True))
-                for alt in alts:
-                    if (alt.floor, alt.quality) > (plan.floor, plan.quality):
-                        plan = alt
-        else:
-            # wide sources often left-align even centred designs: compare
-            v, h = vertical(a, W, H), horizontal(a, W, H)
-            plan = v if v.quality >= h.quality else h
-    if plan.floor < MIN_FONT:
-        # the usual arrangement can't keep the copy readable: try them all
-        alts = [vertical(a, W, H), horizontal(a, W, H)]
-        if a.corner:
-            alts.append(vertical(a, W, H, fold_corners=True))
-        for alt in alts:
-            if (alt.floor, alt.quality) > (plan.floor, plan.quality):
-                plan = alt
+    """Generate and rank: the preferred arrangement, unless its copy breaks
+    the readability floor, leaves text unreadable or collides with
+    something - then every candidate is finished and ranked by (floor,
+    fewest unreadable texts, fewest collisions, preferred, quality)."""
+    def rank(plan, out, preferred):
+        return (plan.floor, -unreadable(a.elements, out),
+                -len(collisions(a.elements, out, W, H)), preferred, plan.quality)
+
+    plan = _preferred(a, W, H)
+    out = _finish(a, plan, W, H)
+    best = (rank(plan, out, 1), out)
+    _, n_small, n_bumps, _, _ = best[0]
+    if plan.floor >= MIN_FONT and n_small == 0 and n_bumps == 0:
+        return out
+    for alt in _candidates(a, W, H):
+        alt_out = _finish(a, alt, W, H)
+        key = rank(alt, alt_out, 0)
+        if key > best[0]:
+            best = (key, alt_out)
+    return best[1]
+
+
+def _finish(a: Analysis, plan: Plan, W: int, H: int) -> list[dict]:
+    """A plan plus everything placed around it: background, edge bands and
+    decorations, the text panel re-wrapped, edge bands snapped clear of copy."""
     k = _k(a, W, H)
-    out = place_free(a, W, H, k) + plan.elements
+    out = place_free(a, W, H, k) + [dict(e) for e in plan.elements]
     placed = {e["id"]: e for e in out}
     cont = wrap_container(a, placed, W, H, k)
     if cont is not None:
