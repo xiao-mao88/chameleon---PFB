@@ -37,10 +37,19 @@ def _font_args(el: dict[str, Any]) -> tuple[str, str, str]:
     return el.get("font_family", "Solstice Sans"), weight, style
 
 
+@lru_cache(maxsize=4096)
+def _char_widths(family: str, weight: str, style: str, size: float,
+                 content: str) -> tuple[float, ...]:
+    """The renderer's per-glyph widths. Cached: fitting re-wraps the same
+    text at the same size into many box widths, and each lookup parses the
+    font file again."""
+    return tuple(char_widths(_font_manager(), family, weight, style, size, content))
+
+
 @lru_cache(maxsize=65536)
 def _measure(content: str, family: str, weight: str, style: str,
              size: float, box_width: float, spacing: float = 0.0) -> tuple[int, float]:
-    widths = char_widths(_font_manager(), family, weight, style, size, content)
+    widths = _char_widths(family, weight, style, size, content)
     wrapped = wrap_text(content, widths, box_width)
     longest = line = 0.0
     glyphs = 0
