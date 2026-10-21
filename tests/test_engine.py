@@ -37,12 +37,13 @@ from functools import lru_cache
 from pathlib import Path
 from unittest import mock
 
+from engine.critic import MIN_HEADLINE as MIN_PRIMARY, MIN_READABLE
 from engine.finalize import extent
 from engine.resize import resize
 from engine.textmeasure import measure_text
 from tools.dataset import ROOT, drawings
-from tools.evaluate import (MIN_PRIMARY, MIN_READABLE, collision_checks, contrast_checks,
-                            hard_checks, overflow_checks, readability_checks)
+from tools.evaluate import (collision_checks, contrast_checks, hard_checks, overflow_checks,
+                            readability_checks)
 
 INPUT_DIR = ROOT / "input"
 

@@ -17,7 +17,7 @@ unreadable(): texts set below the readability floors (7px, or 9px for the
 headline) - what the renderer will draw too small to read.
 """
 
-from engine.analyze import drawn_box as drawn
+from engine.analyze import drawn_box as drawn, headline_id
 from engine.assets import ink_box
 
 MIN_READABLE = 7.0          # every text: below this the renderer's text can't be read
@@ -74,10 +74,18 @@ def collisions(source_elements: list[dict], elements: list[dict], W: float, H: f
     return out
 
 
+def unreadable_texts(source_elements: list[dict], elements: list[dict]) -> list[tuple[str, float, float]]:
+    """(id, font size, floor) of each text set below its floor."""
+    head = headline_id(source_elements)
+    out = []
+    for e in elements:
+        if e.get("type") != "text" or not e.get("content"):
+            continue
+        floor = MIN_HEADLINE if e["id"] == head else MIN_READABLE
+        if e.get("font_size", 0) < floor - 1e-6:
+            out.append((e["id"], e.get("font_size", 0), floor))
+    return out
+
+
 def unreadable(source_elements: list[dict], elements: list[dict]) -> int:
-    texts = [e for e in source_elements if e["type"] == "text" and e.get("content")]
-    if not texts:
-        return 0
-    head = max(texts, key=lambda e: e["font_size"])["id"]
-    return sum(e["font_size"] < (MIN_HEADLINE if e["id"] == head else MIN_READABLE) - 1e-6
-               for e in elements if e["type"] == "text" and e.get("content"))
+    return len(unreadable_texts(source_elements, elements))

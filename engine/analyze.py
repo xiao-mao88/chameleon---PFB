@@ -48,6 +48,12 @@ def rotated_size(w: float, h: float, rotation) -> tuple[float, float]:
     return max(w, w * c + h * s), max(h, w * s + h * c)
 
 
+def headline_id(elements: list[dict]) -> str | None:
+    """The headline: the first non-empty text at the largest font size."""
+    texts = [e for e in elements if e["type"] == "text" and e.get("content")]
+    return max(texts, key=lambda e: e["font_size"])["id"] if texts else None
+
+
 def drawn_box(el: dict) -> Box:
     """What the element covers once drawn: its box, grown to the rotated box's
     bounds when it is rotated."""
@@ -303,10 +309,9 @@ def analyze(source: dict[str, Any]) -> Analysis:
             corner.append((u, v + h))
             flow.remove(u)
 
-    head = max((e for e in els if e["type"] == "text"), key=lambda e: e["font_size"],
-               default=None)
+    head = headline_id(els)
     for u in flow + [u for u, _ in corner] + visual_parts:
-        u.primary = head is not None and any(e is head for e in u.els)
+        u.primary = head is not None and any(e["id"] == head for e in u.els)
 
     texts = [e for u in flow if u.reflow for e in u.els]
     centered = bool(texts) and sum(e.get("text_align") == "center" for e in texts) > len(texts) / 2

@@ -21,8 +21,8 @@ Two kinds of result per task:
     nothing off-canvas, contain/non-cover images in proportion, content and
     font_family untouched, font_size >= 1. Plus text overflow (rendered
     text spilling outside its box), which the official PNG judge will see,
-    and readability: every text >= MIN_READABLE px and the source's
-    largest-font text (the headline) >= MIN_PRIMARY px. Also counted (not
+    and readability: every text >= 7px and the source's largest-font text
+    (the headline) >= 9px (engine.critic). Also counted (not
     hard): collisions (text newly over other text, or over an image / solid
     shape it didn't overlap in the source) and, with --contrast, WCAG
     contrast of each text against what is rendered behind it.
@@ -53,7 +53,7 @@ import traceback
 from collections import defaultdict
 from pathlib import Path
 
-from engine.critic import MIN_HEADLINE as MIN_PRIMARY, MIN_READABLE, collisions, drawn as _drawn
+from engine.critic import collisions, drawn as _drawn, unreadable_texts
 from engine.textmeasure import text_overflow
 from tools.dataset import Pair, drawings, make_task, pairs
 
@@ -156,19 +156,8 @@ def overflow_checks(output: dict) -> list[str]:
 
 
 def readability_checks(source: dict, output: dict) -> list[str]:
-    texts = [e for e in source["elements"] if e["type"] == "text" and e.get("content")]
-    if not texts:
-        return []
-    primary = max(texts, key=lambda e: e["font_size"])["id"]
-    problems = []
-    for el in output.get("elements", []):
-        if el.get("type") != "text" or not el.get("content"):
-            continue
-        fs = el.get("font_size", 0)
-        floor = MIN_PRIMARY if el["id"] == primary else MIN_READABLE
-        if fs < floor:
-            problems.append(f"{el['id']}: unreadable font {fs:.1f}px (< {floor:.0f}px)")
-    return problems
+    return [f"{i}: unreadable font {fs:.1f}px (< {floor:.0f}px)"
+            for i, fs, floor in unreadable_texts(source["elements"], output.get("elements", []))]
 
 
 def collision_checks(source: dict, output: dict) -> list[str]:
