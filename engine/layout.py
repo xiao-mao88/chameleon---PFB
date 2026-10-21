@@ -62,6 +62,13 @@ def _ladder(*levels) -> tuple[Floor, ...]:
 LADDER = _ladder(
     (MIN_FONT, MIN_FONT, MIN_FONT),
     (MIN_FONT, MIN_READABLE, MIN_READABLE),
+    # not all copy can be readable: the rest gives way first so the headline
+    # and the call to action still read, then the headline down to 7px
+    (MIN_FONT, MIN_READABLE, 5.0),
+    (MIN_FONT, MIN_READABLE, 4.0),
+    (MIN_FONT, MIN_READABLE, 3.0),
+    (MIN_READABLE, MIN_READABLE, 3.0),
+    (MIN_READABLE, MIN_READABLE, 2.0),
     (0.0, 0.0, 0.0),                          # nothing fits: everything shrinks together
 )
 STRICTEST, NO_FLOOR = LADDER[0], LADDER[-1]
@@ -920,12 +927,15 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         # copy only fits as unreadable type: spread it over more columns
         units = flow                # every column's units, in reading order
         panel = frozenset(a.container_children)
-        alt = strip_columns(units, left, right, ch_top, ch, gap, column, max_cols, panel)
+        # only floors stricter than what the copy already has can win
+        alt = strip_columns(units, left, right, ch_top, ch, gap, column, max_cols, panel,
+                            levels=_stricter(floor))
         if alt is not None and alt[0] > floor:
             els = els[:copy_start] + alt[2]
             floor, f_main = alt[0], alt[1]
         if floor < STRICTEST:
-            alt = two_rows(units, left, right, ch_top, ch, gap, column, max_cols, panel)
+            alt = two_rows(units, left, right, ch_top, ch, gap, column, max_cols, panel,
+                           levels=_stricter(floor))
             if alt is not None and alt[0] > floor:
                 els = els[:copy_start] + alt[2]
                 floor, f_main = alt[0], alt[1]
@@ -982,7 +992,8 @@ def _split_columns(a: Analysis, flow: list[Unit], strip: bool, r: float):
     return lead, main, action, outside
 
 
-def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
+def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset(),
+             levels=LADDER[:-1]):
     """Headline across the full copy width, everything else in columns
     below it - for strips where the headline needs more width than any one
     column can give (long words, long lines). Same return as strip_columns."""
@@ -993,9 +1004,10 @@ def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
     top = column([units[head]], None)
     w = x1 - x0
     row_gap = max(2.0, 0.04 * ch)
-    for floor in LADDER[:-1]:
+
+    def attempt(floor):
         if top.min_width(ch, floor, w) is None:
-            continue
+            return None
         lo, hi = 1.0, ch                      # least height the headline needs
         for _ in range(14):
             mid = (lo + hi) / 2
@@ -1006,26 +1018,53 @@ def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
         h1 = hi
         below = ch - h1 - row_gap
         if below <= 0:
-            continue
+            return None
         cols = strip_columns(rest, x0, x1, y + h1 + row_gap, below, gap, column, max_cols,
-                             panel)
-        if cols is None or cols[0] < floor:
-            continue
+                             panel, levels=tuple(lv for lv in LADDER[:-1] if lv >= floor))
+        if cols is None:
+            return None
         f = top.solve(w, h1, 1.0, floors=(floor,))
         top.floor = floor
         out = top.place(x0, y, w, h1, f, "left") + cols[2]
         return floor, min(f, cols[1]), out
-    return None
+
+    return strictest(levels, attempt)
+
+
+def _stricter(floor: Floor) -> tuple[Floor, ...]:
+    return tuple(lv for lv in LADDER[:-1] if lv > floor)
+
+
+def strictest(levels, attempt):
+    """attempt(floor) at the strictest of `levels` (strictest first) where it
+    doesn't return None. The original floors (9px, then 7px) are tried in
+    turn; below them each level is looser for every role, so copy that fits
+    one fits all looser ones and the graded levels are binary-searched."""
+    for floor in (lv for lv in levels if lv >= LADDER[1]):
+        r = attempt(floor)
+        if r is not None:
+            return r
+    graded = [lv for lv in levels if lv < LADDER[1]]
+    lo, hi, found = 0, len(graded) - 1, None
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        r = attempt(graded[mid])
+        if r is not None:
+            found, hi = r, mid - 1
+        else:
+            lo = mid + 1
+    return found
 
 
 EXHAUSTIVE_SPLITS = 2000   # above this many ways to split the copy, use the DP
 
 
-def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset()):
+def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset(),
+                  levels=LADDER[:-1]):
     """Lay reading-ordered units out as up to max_cols side-by-side columns
     on a thin strip, choosing the split that keeps text at the strictest
-    readability floor, then the largest type. Returns (floor, f, elements)
-    or None if no split keeps text above the last floor.
+    readability floor (of `levels`), then the largest type. Returns
+    (floor, f, elements) or None if no split keeps text above the last floor.
 
     Splits are contiguous runs of the reading order. Few units: every split
     is tried. Many units: for each column count, a DP finds the split with
@@ -1056,8 +1095,10 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
         return w if w is not None and w <= avail else None
 
     def splits(n, floor, avail):
-        """Candidate splits into n columns, as bounds tuples."""
-        if sum(comb(n_units - 1, k) for k in range(min(max_cols, n_units))) <= EXHAUSTIVE_SPLITS:
+        """Candidate splits into n columns, as bounds tuples. The graded
+        floors (a last resort) always take the DP's least-width split."""
+        if (floor >= LADDER[1] and sum(comb(n_units - 1, k) for k in range(min(max_cols, n_units)))
+                <= EXHAUSTIVE_SPLITS):
             for cuts in combinations(range(1, n_units), n - 1):
                 yield (0,) + cuts + (n_units,)
             return
@@ -1084,15 +1125,13 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
             bounds.append(j)
         yield tuple(reversed(bounds))
 
-    best = None
-    for n in range(1, min(max_cols, n_units) + 1):
-        avail = x1 - x0 - gap * (n - 1)
-        if avail <= 0:
-            break
-        for floor in LADDER[:-1]:
-            if best is not None and floor < best[0][0]:
+    def attempt(floor):
+        """The best split at this floor, over every column count."""
+        best = None
+        for n in range(1, min(max_cols, n_units) + 1):
+            avail = x1 - x0 - gap * (n - 1)
+            if avail <= 0:
                 break
-            found = False
             for bounds in splits(n, floor, avail):
                 pairs = list(zip(bounds, bounds[1:]))
                 mins = []
@@ -1103,7 +1142,6 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
                     mins.append(w)
                 if len(mins) < n or sum(mins) > avail:
                     continue
-                found = True
                 cols = [col(i, j) for i, j in pairs]
                 extra = (avail - sum(mins)) / n
                 widths = [w + extra for w in mins]
@@ -1111,8 +1149,9 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
                 key = (floor, min(fs), -n)
                 if best is None or key > best[0]:
                     best = (key, cols, widths, fs)
-            if found:
-                break
+        return best
+
+    best = strictest(levels, attempt)
     if best is None:
         return None
     (floor, f_min, _), cols, widths, fs = best
