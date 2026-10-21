@@ -69,6 +69,7 @@ LADDER = _ladder(
     (MIN_FONT, MIN_READABLE, 3.0),
     (MIN_READABLE, MIN_READABLE, 3.0),
     (MIN_READABLE, MIN_READABLE, 2.0),
+    (MIN_READABLE, MIN_READABLE, 1.5),        # the rest is unreadable by now anyway
     (0.0, 0.0, 0.0),                          # nothing fits: everything shrinks together
 )
 STRICTEST, NO_FLOOR = LADDER[0], LADDER[-1]
