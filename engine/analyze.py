@@ -20,6 +20,7 @@ Every source element lands in exactly one of these buckets:
               body, CTA… -> re-flowed into columns
 """
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,6 +36,20 @@ EDGE_TOL = 0.01
 
 def box_of(el: dict) -> Box:
     return el["x"], el["y"], el["x"] + el["width"], el["y"] + el["height"]
+
+
+def drawn_box(el: dict) -> Box:
+    """What the element covers once drawn: its box, grown to the rotated box's
+    bounds when it is rotated (the renderer rotates about the centre)."""
+    x0, y0, x1, y1 = box_of(el)
+    r = math.radians(float(el.get("rotation") or 0.0))
+    if not r:
+        return x0, y0, x1, y1
+    w, h = x1 - x0, y1 - y0
+    c, s = abs(math.cos(r)), abs(math.sin(r))
+    rw, rh = max(w, w * c + h * s), max(h, w * s + h * c)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    return cx - rw / 2, cy - rh / 2, cx + rw / 2, cy + rh / 2
 
 
 def union(boxes) -> Box:
@@ -64,10 +79,11 @@ class Unit:
     kind: str = "flow"          # see module docstring
     reflow: bool = False        # a lone text element: font/width re-flowed
     row: int | None = None      # units sharing a row id sat side by side (badge row)
+    primary: bool = False       # holds the headline (first text at the largest size)
     box: Box = field(init=False)
 
     def __post_init__(self):
-        self.box = union(box_of(e) for e in self.els)
+        self.box = union(drawn_box(e) for e in self.els)
 
     @property
     def w(self) -> float:
@@ -90,6 +106,17 @@ class Unit:
         return any(e["type"] == "text" for e in self.els)
 
     @property
+    def is_labelled_shape(self) -> bool:
+        """One shape with one text sitting inside it (pill, badge, tag) -
+        re-wrappable around its label, whatever the label's length."""
+        shapes = [e for e in self.els if e["type"] == "shape"]
+        texts = [e for e in self.els if e["type"] == "text"]
+        return (len(self.els) == 2 and len(shapes) == 1 and len(texts) == 1
+                and shapes[0].get("shape_type") != "ellipse"
+                and contains(box_of(shapes[0]), box_of(texts[0]),
+                             tol=0.25 * texts[0]["height"]))
+
+    @property
     def is_button(self) -> bool:
         """A pill/box shape with a single short label on it (CTA-like)."""
         shapes = [e for e in self.els if e["type"] == "shape"]
@@ -107,6 +134,7 @@ class Analysis:
     deco: list[dict]             # free decorations
     visual: Unit | None          # hero cluster (includes attached decos)
     visual_core: Box | None      # hero bbox without attached decos
+    visual_parts: list[Unit]     # text-bearing units the hero pulled in (badges, captions)
     container: Unit | None
     container_children: set[str]
     corner: list[tuple[Unit, str]]   # (unit, "tl"|"tr"|"bl"|"br")
@@ -242,9 +270,11 @@ def analyze(source: dict[str, Any]) -> Analysis:
         deco = [d for d in deco if d not in attached]
         visual_unit = Unit([e for u in visual for e in u.els] + attached)
         visual_unit.kind = "visual"
+        visual_parts = [u for u in visual if u.has_text]
         others = [u for u in others if u not in visual]
     else:
         visual_unit = None
+        visual_parts = []
 
     _tag_rows(others)
     flow = xy_order(others, W, H)
@@ -268,12 +298,18 @@ def analyze(source: dict[str, Any]) -> Analysis:
             corner.append((u, v + h))
             flow.remove(u)
 
+    head = max((e for e in els if e["type"] == "text"), key=lambda e: e["font_size"],
+               default=None)
+    for u in flow + [u for u, _ in corner] + visual_parts:
+        u.primary = head is not None and any(e is head for e in u.els)
+
     texts = [e for u in flow if u.reflow for e in u.els]
     centered = bool(texts) and sum(e.get("text_align") == "center" for e in texts) > len(texts) / 2
 
     return Analysis(
         canvas=(W, H), background=background, edge=edge, deco=deco,
-        visual=visual_unit, visual_core=visual_core, container=container,
+        visual=visual_unit, visual_core=visual_core, visual_parts=visual_parts,
+        container=container,
         container_children={e["id"] for u in children for e in u.els},
         corner=corner, flow=flow, centered=centered,
         max_font=max((e["font_size"] for e in els if e["type"] == "text"), default=0.0))

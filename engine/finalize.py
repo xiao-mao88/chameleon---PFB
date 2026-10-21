@@ -8,6 +8,17 @@ import math
 from typing import Any
 
 
+def extent(el: dict) -> tuple[float, float]:
+    """(width, height) the element covers on canvas: the larger of its box
+    and its box rotated about the centre (the renderer rotates that way)."""
+    w, h = el["width"], el["height"]
+    r = math.radians(float(el.get("rotation") or 0.0))
+    if not r:
+        return w, h
+    c, s = abs(math.cos(r)), abs(math.sin(r))
+    return max(w, w * c + h * s), max(h, w * s + h * c)
+
+
 def _keeps_aspect(src: dict) -> bool:
     if src["type"] == "image":
         return src.get("fit") != "cover"
@@ -42,20 +53,29 @@ def finalize(source: dict[str, Any], placed: list[dict], W: int, H: int) -> list
                     el["height"] = el["width"] / ratio
                 el["x"], el["y"] = cx - el["width"] / 2, cy - el["height"] / 2
 
-        # Too big for the canvas: shrink about the centre (uniformly when the
-        # element must keep its shape, and scale text with it).
-        if el["width"] > W or el["height"] > H:
-            s = min(W / max(el["width"], 1e-9), H / max(el["height"], 1e-9))
+        # Too big for the canvas (rotated bounds included): shrink about the
+        # centre (uniformly when the element must keep its shape, and scale
+        # text with it).
+        ew, eh = extent(el)
+        if ew > W or eh > H:
+            s = min(W / max(ew, 1e-9), H / max(eh, 1e-9))
             cx, cy = el["x"] + el["width"] / 2, el["y"] + el["height"] / 2
             if _keeps_aspect(src) or el["type"] == "text":
                 el["width"] *= s
                 el["height"] *= s
                 if el["type"] == "text":
                     el["font_size"] = el["font_size"] * s
+            elif el.get("rotation"):
+                el["width"], el["height"] = el["width"] * s, el["height"] * s
             else:
                 el["width"], el["height"] = min(el["width"], W), min(el["height"], H)
             el["x"], el["y"] = cx - el["width"] / 2, cy - el["height"] / 2
 
+        # keep the centre where box and rotated bounds both stay on canvas
+        ew, eh = extent(el)
+        cx = min(max(el["x"] + el["width"] / 2, ew / 2), W - ew / 2)
+        cy = min(max(el["y"] + el["height"] / 2, eh / 2), H - eh / 2)
+        el["x"], el["y"] = cx - el["width"] / 2, cy - el["height"] / 2
         el["x"] = min(max(el["x"], 0.0), W - el["width"])
         el["y"] = min(max(el["y"], 0.0), H - el["height"])
 

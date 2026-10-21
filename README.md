@@ -1,144 +1,115 @@
-# CHAMELEON — starter repo
+# CHAMELEON — design resize engine
 
-This is the scaffolding for your engine. It handles input loading, output
-writing, rendering, and Docker packaging — so the only file you need to
-edit is **`engine/resize.py`**.
+*Adobe University Hackathon: North America 2026*
 
+## The challenge
+
+Give the engine a finished design (text, image and shape elements with
+position, size, font, stacking order and grouping) and a new canvas size.
+It returns the same design re-laid-out for that canvas, with nothing
+overlapping that shouldn't, text readable, brand intact, and the hierarchy
+kept, all without a human touching it. The brief's analogy is to *move the
+furniture, don't stretch the photo of the room*. Every element id comes back
+exactly once, images keep their proportions, copy and fonts are never
+changed, and no image content is generated. Both the output JSON and its
+rendered PNG are judged (see `RULES.md`).
+
+## How the engine works
+
+`engine/resize.py` → `analyze` → `layout` → `finalize`. Everything is
+inferred from geometry and style. Ids carry no meaning, and nothing is
+tuned to a specific design or size.
+
+| Step | File | What it does |
+|---|---|---|
+| Analyze | `engine/analyze.py` | Labels every element: background, edge band, faint decoration, hero visual cluster, text panel, corner badge, or reading-order copy (via recursive XY-cut). Groups, badge rows and buttons move as units. |
+| Arrange | `engine/layout.py` | Tall targets get one centred column. Wide targets put the hero visual beside copy columns (a CTA gets its own column on wide banners). Thin strips spread the copy over as many side-by-side columns as it needs, using a DP over the reading order, so even 80 text boxes lay out in under a second. Near-square targets follow the source's alignment. If the usual arrangement can't keep the copy readable, every arrangement is tried and the most readable one wins. |
+| Size type | `engine/layout.py` | Fonts start at a scaling law fitted across the hand-drawn references (big type tracks the canvas, small type less), then each column shrinks until it fits. **Readability floors**: no text goes below 9px (then 7px) while anything else can still give way, and the headline never drops below 9px. Buttons, badges and tags re-wrap around a readable label (always, if the label already spilled out of its pill in the source, e.g. translated copy). Badge rows wrap into compact pills, and captions too small to read on the hero visual move into the copy. Letter-spacing scales with the font and is loosened when wrapped lines would draw wider than their box. Rotated text is sized by its rotated bounds. |
+| Enforce | `engine/finalize.py` | The hard rules as a last pass: every id once, protected fields untouched, images and ellipses in proportion, everything on canvas, including rotated elements' drawn bounds. |
+| Measure | `engine/textmeasure.py` | Wraps text with the official renderer's fonts and glyph widths, so "does it fit?" matches the PNG. Like the renderer, it breaks lines on plain widths, then measures them as drawn, with letter-spacing (and `capitalize`). |
+
+If layout ever raises an exception, `resize()` falls back to a uniform,
+undistorted fit rather than crashing.
+
+## Run it
+
+```bash
+pip install -r requirements.txt        # Python 3.10+, installs cr-renderer
+python -m engine.main                  # every input/*.json -> output/<task>_output.{json,png}
 ```
-input:  a task JSON (source design + target canvas)
-              |
-              v
-        engine/resize.py   <-- YOU IMPLEMENT THIS
-              |
-              v
-output: <task>_output.json  (schema-valid resized design)
-        <task>_output.png   (rendered preview)
+
+In Docker, the way stage one runs it (offline):
+
+```bash
+docker build --platform linux/amd64 -t chameleon-engine .
+docker run --rm --network none \
+  -v $(pwd)/input:/app/input -v $(pwd)/output:/app/output chameleon-engine
 ```
 
-Both the JSON and the PNG are what get evaluated — see `RULES.md`.
+## Test it
+
+| Command | What it checks |
+|---|---|
+| `python -m unittest discover tests` | Engine tests on **unseen** cases. Sources: the 3 official samples, all 12 reference designs, and 20 generated designs: opaque ids, reversed z-order, one element, text only, no text, 30+ elements, rotation (one element, and everything at 30°), run-on copy, missing asset, labels longer than their pills, letter-spacing on every line, 40 text boxes, a 9-photo grid, a 10-line menu, two heroes, text on a photo, Unicode, bleed off-canvas, zero-size and empty elements. Each runs into 26 real platform formats: Instagram post / portrait / story / grid, Facebook link and cover, X post and header, LinkedIn banner and company cover, YouTube thumbnail and channel art, Pinterest, IAB 300×250 / 300×600 / 160×600 / 120×600 / 180×150 / 728×90 / 970×90 / 468×60 / 320×50 / 320×100 / 970×250, a 100×100 tile and a print poster. Checks: hard rules, ellipse proportions, no text overflow, readability, no text/text collisions, rotated bounds on canvas, no crash or fallback, every case under 10s, determinism. Takes about 1.5 minutes. |
+| `python -m tools.evaluate` | Scores `resize()` against the 504 hand-drawn reference pairs in `adobe-projchameleon/` (every format of a design → every other). Reports box/position/layout-order/font similarity (0–100) plus valid / no-overflow / readable rates. Options: `--save NAME`, `--compare NAME`, `--holdout FAMILY`, `--target FMT`, `--show TASK`, `--worst N`. |
+| `python -m tools.evaluate --size 320x50 --size 1000x1500` | Also runs every reference design into sizes with no hand-drawn answer (hard checks and readability only). |
+| `python -m tools.make_inputs` | Regenerates `input/ref_*` (12 reference tasks) and `input/stress_*` (10 adversarial tasks) to inspect as PNGs after `python -m engine.main`. The 3 official samples are left untouched. |
+
+The references in `adobe-projchameleon/` are used **only for evaluation**
+and for fitting the general font-scaling law. The engine does not look up
+or copy any reference layout.
+
+## Results
+
+`eval/results/tier2.json` vs `eval/results/rules-before.json`:
+
+| | Score | Valid | No overflow | Readable |
+|---|---|---|---|---|
+| 504 reference pairs: before | 56.3 | 100% | 100% | 94% |
+| 504 reference pairs: now | **56.9** | 100% | 100% | **100%** |
+| by family (fernway / ridgeline / solstice) | 56.1 / 51.4 / 63.2 | 100% | 100% | 100% |
+
+Unseen catalogue sizes (each reference design from each format, 84 tasks per
+size). Valid and no-overflow are 100% everywhere. Readability is 100% at
+1080×1080, 1200×628, 1600×900, 1500×500, 1000×1500, 300×250, 300×600,
+970×250 and 2400×3600; **98% at 320×100** (up from 19%) and **82% at 320×50**
+(up from 15%).
+
+`tests/`: all 11 tests pass on 910 cases (35 sources × 26 formats). The
+slowest case takes under 5s.
+
+## Known limitations
+
+- **Copy-heavy designs on tiny or narrow formats.** Some designs' copy
+  can't fit at 7px at all, so it shrinks below that (best effort, and it may
+  overlap). `tests/test_engine.py` exempts these by a physical-fit check
+  (copy area, longest word, rotated bounds): 35 of 910 cases, all on formats
+  under 40k px² or ≤ 320px wide. It also names 5 near misses in
+  `KNOWN_LIMITATIONS`, each with its reason.
+- **Tracking may be loosened.** Wrapped letter-spaced text loses some or all
+  of its tracking, because the renderer breaks lines without it and would
+  otherwise draw past the box. Short one-line tracked labels keep it.
+- **The judge's metric is not ours.** The evaluator measures how close the
+  output is to one designer's layout. That's a proxy: the official judge
+  scores the rendered PNG against its own rubric.
+- **Arrangement choices on some formats.** On banners and leaderboards, a
+  hero visual that sat above the copy goes on the left, where the designers
+  often put the copy left. A pinned corner caption can overlap the hero
+  visual on wide banners. Tall formats can leave a large gap between the
+  visual and the copy (e.g. 1000×1500).
+- **Nothing is hidden.** Stage one requires every element to stay, so on
+  tiny formats nothing drops away. Letting minor elements drop is a
+  finale-stage idea.
 
 ## Repo layout
 
 ```
-engine/
-  resize.py        <- implement your approach here
-  main.py           <- orchestrator (input -> resize() -> output). Don't need to edit this.
-renderer/           <- the real renderer (transformer-convertor + cr-renderer), already vendored
-brand_kit/
-  assets/           <- image files referenced by asset_id in the sample designs
-  fonts/            <- font files matching the schema's font_family values
-input/               <- drop task JSON files here for local testing (3 samples included)
-output/              <- results land here
-chameleon_design_schema_v0.9.json   <- full field-by-field spec for the design format
-Dockerfile
-RULES.md
+engine/            resize.py (entry) · analyze.py · layout.py · finalize.py · textmeasure.py · main.py (orchestrator)
+tests/             test_engine.py — unseen designs × real formats
+tools/             evaluate.py · dataset.py · make_inputs.py
+eval/results/      saved evaluator runs
+adobe-projchameleon/   hand-drawn references (evaluation only)
+input/ output/     task files in, JSON + PNG out
+renderer/ brand_kit/   official renderer, fonts and assets
+chameleon_design_schema_v0.9.json · RULES.md · FAQ.md · Dockerfile
 ```
-
-## Quick start (no Docker needed for iterating on `resize()`)
-
-```bash
-pip install -r requirements.txt
-python -m engine.main
-```
-
-This processes every `*.json` file in `input/` (the 3 sample designs are
-already there — one per difficulty level) and writes an `_output.json` and
-`_output.png` for each into `output/`.
-
-The included baseline is a **uniform stretch** — deliberately the wrong
-approach (see the main brief: "a naive program stretches the picture; a
-good one moves the furniture"). It's there so the pipeline runs on day
-one. Run it once, look at `output/*_output.png`, and you'll see exactly
-why it's not good enough — that's the point. Replace the body of
-`resize()` in `engine/resize.py`, not just its constants.
-
-## Scoring against the hand-drawn references
-
-`adobe-projchameleon/` holds 12 designs, each hand-laid-out at 7 formats.
-`tools/evaluate.py` turns every (source format -> target format) pair into
-a task (504 total), runs `resize()`, and compares the result with the
-designer's layout: hard rule checks, rendered-text overflow, and box/position/
-layout-order/font-size similarity rolled into a 0-100 score.
-
-```bash
-python -m tools.evaluate --save baseline     # score + save a run
-python -m tools.evaluate --compare baseline  # deltas vs a saved run
-python -m tools.evaluate --holdout ridgeline # one family only (unseen-brand check)
-python -m tools.make_inputs                  # regenerate input/ref_* and input/stress_*
-```
-
-`input/ref_*` are 12 reference tasks (one per design, every target format
-covered); `input/stress_*` are adversarial cases (opaque ids, many badges,
-run-on copy, sizes not in the reference set). The stretch baseline scored
-36.5 with 0% of tasks passing the hard checks; the current engine scores
-56.3 with 100% passing and no text overflow.
-
-The engine (`engine/resize.py`) works in three steps: `analyze.py` labels
-each element from geometry/style (background, edge band, decoration, hero
-visual cluster, text panel, corner badge, reading-order copy);
-`layout.py` stacks everything in one column for tall targets or puts the
-visual beside copy columns for wide ones, sizing type with a font-scaling
-rule fitted to the references; `finalize.py` enforces the hard rules.
-
-Before those rules run, `transfer.py` checks whether the source *is* one of
-the reference designs (matched by geometry, type and text size, so renamed
-ids still match). If it is, and a reference format is close to the target's
-aspect ratio, it follows the designer's own layout for that format and
-re-fits the text; otherwise the rules take over. The references are bundled
-into `engine/reference_layouts.json` (rebuild with
-`python -m tools.build_library` after editing `adobe-projchameleon/`).
-
-A plain `evaluate` run scores 100 because every task's answer is in the
-library, so test generalisation with `CHAMELEON_HOLDOUT` (evaluation only):
-
-```bash
-CHAMELEON_HOLDOUT=format python -m tools.evaluate   # known design, unseen size  (60.3)
-CHAMELEON_HOLDOUT=design python -m tools.evaluate   # unseen design             (56.3)
-CHAMELEON_HOLDOUT=family python -m tools.evaluate   # unseen brand              (56.3)
-```
-
-## What the self-check does (and doesn't do)
-
-`main.py` runs a quick structural check after every task — same element
-`id`s as the source, required fields present, nothing off-canvas. **This
-is not the official scorer.** It exists to catch obvious mistakes before
-you waste a submission on them. See `RULES.md` for what's actually
-checked and graded.
-
-A self-check warning does not fail the run — your JSON and PNG are still
-written either way. Read the warning; decide whether it's a real problem
-or, like the Level 2 sample's intentionally corner-bleeding decorative
-circle, an expected one.
-
-## The renderer
-
-`main.py` calls `renderer/converter/convert.py`'s `render_design_to_png()`
-(a vendored copy of `transformer-convertor`, wrapping `cr-renderer`) to
-produce each task's PNG — already wired in, no setup needed. It reads
-fonts/assets from `brand_kit/` and writes a real rendered preview, not a
-placeholder. If you ever see plain labeled boxes instead of real text and
-images in `output/*.png`, that means the import in `main.py` failed (e.g.
-`cr-renderer` didn't install — check `requirements.txt` installed cleanly)
-and it silently fell back to the box-and-label placeholder; don't judge
-your layout quality by that fallback.
-
-## Docker (how you'll actually be run)
-
-```bash
-docker build --platform linux/amd64 -t my-chameleon-engine .
-docker run --rm --network none \
-  -v $(pwd)/input:/app/input \
-  -v $(pwd)/output:/app/output \
-  my-chameleon-engine
-```
-
-`--network none` matches how stage-one scoring runs: everything your
-engine needs must be installed at **build** time (add it to
-`requirements.txt`), not fetched at run time. If you're using a locally
-hosted model, bake its weights into the image during the build step.
-
-## See also
-
-- `chameleon_design_schema_v0.9.json` — full input/output field spec
-- `RULES.md` — what's checked, what's graded, and what disqualifies a submission
-- FAQ — for anything not covered above

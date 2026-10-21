@@ -12,7 +12,6 @@ from typing import Any
 from engine.analyze import analyze
 from engine.finalize import finalize
 from engine.layout import layout, scaled_copy
-from engine.transfer import transfer
 
 
 def resize(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
@@ -51,9 +50,7 @@ def resize(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, A
 
     W, H = int(target_canvas["width"]), int(target_canvas["height"])
     try:
-        # a design the reference set holds: follow the designer's own
-        # layout at the nearest format; anything else: rule-based layout
-        placed = transfer(source, W, H) or layout(analyze(source), W, H)
+        placed = layout(analyze(source), W, H)
     except Exception:
         # Never crash on a weird design: fall back to fitting the whole
         # source uniformly inside the target (no distortion), centred.

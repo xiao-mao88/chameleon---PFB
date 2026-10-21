@@ -3,7 +3,10 @@ Text measurement that matches the official renderer.
 
 Uses the same font lookup, skia glyph widths and greedy word-wrap that
 renderer/converter/convert.py uses when it draws text, so "does this text
-fit its box?" is answered the same way the PNG will be drawn. Shared by the
+fit its box?" is answered the same way the PNG will be drawn. Like the
+renderer, lines are broken on untracked, original-case widths, but drawn
+(and so measured) with letter_spacing between glyphs and uppercased when
+`capitalize` is set. Shared by the
 evaluator (tools/evaluate.py) and, later, by resize()'s text fitting.
 """
 
@@ -37,16 +40,24 @@ def _font_args(el: dict[str, Any]) -> tuple[str, str, str]:
 
 @lru_cache(maxsize=65536)
 def _measure(content: str, family: str, weight: str, style: str,
-             size: float, box_width: float) -> tuple[int, float]:
+             size: float, box_width: float, spacing: float = 0.0,
+             capitalize: bool = False) -> tuple[int, float]:
     widths = char_widths(_font_manager(), family, weight, style, size, content)
     wrapped = wrap_text(content, widths, box_width)
+    drawn = widths
+    if capitalize and len(content.upper()) == len(content):
+        drawn = char_widths(_font_manager(), family, weight, style, size, content.upper())
     longest = line = 0.0
-    for c, w in zip(wrapped, widths):
+    glyphs = 0
+    for c, w in zip(wrapped, drawn):
         if c == "\n":
-            longest, line = max(longest, line), 0.0
+            longest = max(longest, line + spacing * max(0, glyphs - 1))
+            line, glyphs = 0.0, 0
         else:
             line += w
-    return wrapped.count("\n") + 1, max(longest, line)
+            glyphs += 1
+    longest = max(longest, line + spacing * max(0, glyphs - 1))
+    return wrapped.count("\n") + 1, longest
 
 
 def measure_text(el: dict[str, Any], font_size: float | None = None,
@@ -60,7 +71,8 @@ def measure_text(el: dict[str, Any], font_size: float | None = None,
     size = float(font_size if font_size is not None else el["font_size"])
     width = float(box_width if box_width is not None else el["width"])
     lines, text_width = _measure(str(el.get("content", "")), *_font_args(el),
-                                 size, width)
+                                 size, width, float(el.get("letter_spacing") or 0.0),
+                                 bool(el.get("capitalize", False)))
     line_height = float(el.get("line_height", _DEFAULT_LINE_HEIGHT))
     return {"lines": lines, "text_width": text_width,
             "text_height": lines * size * line_height}

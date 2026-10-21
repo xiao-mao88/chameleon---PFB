@@ -126,6 +126,15 @@ def stress_tasks() -> dict[str, dict]:
             e.pop("style_runs", None)
     out["stress_longword_to_header_1500x500"] = _task(
         src, 1500, 500, "Very long headline containing one unbreakable word.")
+
+    # More catalogue formats outside the reference set.
+    out["stress_core_to_pinterest_1000x1500"] = _task(
+        _sample(core), 1000, 1500, "Level 2 design into a Pinterest pin.")
+    out["stress_advanced_to_billboard_970x250"] = _task(
+        _sample(adv), 970, 250, "Level 3 into an IAB billboard.")
+    out["stress_advanced_to_large_mobile_320x100"] = _task(
+        _sample(adv), 320, 100, "Level 3 into a large mobile banner — badges and "
+        "legal copy must stay readable.")
     return out
 
 

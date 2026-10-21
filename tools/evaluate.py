@@ -10,6 +10,8 @@ designer's own layout at the target size.
     python -m tools.evaluate --save baseline      # write eval/results/baseline.json
     python -m tools.evaluate --compare baseline   # show deltas vs a saved run
     python -m tools.evaluate --engine engine.resize:resize   # any callable
+    python -m tools.evaluate --size 320x50 --size 1000x1500  # + unseen sizes
+                                                  # (hard checks only: no answer)
 
 Two kinds of result per task:
 
@@ -17,7 +19,9 @@ Two kinds of result per task:
     structural check enforces: same ids, required fields, target canvas,
     nothing off-canvas, contain/non-cover images in proportion, content and
     font_family untouched, font_size >= 1. Plus text overflow (rendered
-    text spilling outside its box), which the official PNG judge will see.
+    text spilling outside its box), which the official PNG judge will see,
+    and readability: every text >= MIN_READABLE px and the source's
+    largest-font text (the headline) >= MIN_PRIMARY px.
 
   * Similarity to the reference, each 0..1 (higher is better):
       iou   mean box IoU per element
@@ -46,7 +50,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from engine.textmeasure import text_overflow
-from tools.dataset import Pair, make_task, pairs
+from tools.dataset import Pair, drawings, make_task, pairs
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "eval" / "results"
 
@@ -60,6 +64,8 @@ REQUIRED_BY_TYPE = {
 EDGE_TOL = 0.5           # px slack for on-canvas checks
 ASPECT_TOL = 0.05        # RULES.md: images in proportion within ~5%
 OVERFLOW_TOL = 2.0       # px of text spill before we flag it
+MIN_READABLE = 7.0       # px: below this no text survives the rendered PNG
+MIN_PRIMARY = 9.0        # px: the headline must stay comfortably readable
 
 
 # --------------------------------------------------------------------------
@@ -140,6 +146,22 @@ def overflow_checks(output: dict) -> list[str]:
         if o["x"] or o["y"]:
             problems.append(f"{el['id']}: text overflows box by "
                             f"{o['x']:.0f}px wide, {o['y']:.0f}px tall")
+    return problems
+
+
+def readability_checks(source: dict, output: dict) -> list[str]:
+    texts = [e for e in source["elements"] if e["type"] == "text" and e.get("content")]
+    if not texts:
+        return []
+    primary = max(texts, key=lambda e: e["font_size"])["id"]
+    problems = []
+    for el in output.get("elements", []):
+        if el.get("type") != "text" or not el.get("content"):
+            continue
+        fs = el.get("font_size", 0)
+        floor = MIN_PRIMARY if el["id"] == primary else MIN_READABLE
+        if fs < floor:
+            problems.append(f"{el['id']}: unreadable font {fs:.1f}px (< {floor:.0f}px)")
     return problems
 
 
@@ -233,17 +255,50 @@ def evaluate_pair(resize, pair: Pair) -> dict:
         output = resize(json.loads(json.dumps(task["source"])), dict(task["target_canvas"]))
     except Exception:
         row.update(crashed=True, hard=["crashed: " + traceback.format_exc(limit=3)],
-                   overflow=[], score=0.0, iou=0.0, pos=0.0, rel=0.0, font=0.0)
+                   overflow=[], unreadable=[], score=0.0, iou=0.0, pos=0.0, rel=0.0, font=0.0)
         return row
     row["crashed"] = False
     row["hard"] = hard_checks(task["source"], output, task["target_canvas"])
     row["overflow"] = overflow_checks(output)
+    row["unreadable"] = readability_checks(task["source"], output)
     try:
         row.update(similarity(output, reference))
     except Exception:
         row.update(score=0.0, iou=0.0, pos=0.0, rel=0.0, font=0.0)
         row["hard"].append("similarity failed: " + traceback.format_exc(limit=2))
     return row
+
+
+def evaluate_size(resize, drawing, W: int, H: int) -> dict:
+    """A target size with no hand-drawn answer: hard checks only."""
+    source = drawing.load()
+    target = {"width": W, "height": H}
+    row = {"task": f"{drawing.design}__{drawing.format}_to_{W}x{H}", "target": f"{W}x{H}"}
+    try:
+        output = resize(json.loads(json.dumps(source)), dict(target))
+    except Exception:
+        return dict(row, hard=["crashed: " + traceback.format_exc(limit=3)],
+                    overflow=[], unreadable=[])
+    return dict(row, hard=hard_checks(source, output, target),
+                overflow=overflow_checks(output),
+                unreadable=readability_checks(source, output))
+
+
+def report_sizes(rows: list[dict]) -> dict:
+    print("\n== unseen sizes (hard checks only) ==")
+    out = {}
+    by = defaultdict(list)
+    for r in rows:
+        by[r["target"]].append(r)
+    for name, rs in by.items():
+        n = len(rs)
+        out[name] = {"n": n, "valid": sum(not r["hard"] for r in rs) / n,
+                     "no_overflow": sum(not r["overflow"] for r in rs) / n,
+                     "readable": sum(not r["unreadable"] for r in rs) / n}
+        s = out[name]
+        print(f"  {name:<22}{n:>4}  valid {s['valid']:4.0%}  "
+              f"no-overflow {s['no_overflow']:4.0%}  readable {s['readable']:4.0%}")
+    return out
 
 
 def summarize(rows: list[dict]) -> dict:
@@ -254,6 +309,7 @@ def summarize(rows: list[dict]) -> dict:
         **{k: statistics.fmean(r[k] for r in rows) for k in WEIGHTS},
         "valid": sum(not r["hard"] for r in rows) / n,
         "no_overflow": sum(not r["overflow"] for r in rows) / n,
+        "readable": sum(not r.get("unreadable") for r in rows) / n,
         "crashed": sum(r["crashed"] for r in rows),
     }
 
@@ -267,7 +323,8 @@ def _fmt(s: dict, prev: dict | None = None) -> str:
     return (f"{s['n']:>4}  score {s['score']:5.1f}{d('score'):<8}"
             f"iou {s['iou']:.2f}  pos {s['pos']:.2f}  rel {s['rel']:.2f}  font {s['font']:.2f}  "
             f"valid {s['valid']:4.0%}{d('valid', 100):<8}"
-            f"no-overflow {s['no_overflow']:4.0%}{d('no_overflow', 100)}")
+            f"no-overflow {s['no_overflow']:4.0%}{d('no_overflow', 100):<8}"
+            f"readable {s.get('readable', 0):4.0%}{d('readable', 100)}")
 
 
 def report(rows: list[dict], prev: dict | None = None, worst: int = 10) -> dict:
@@ -287,8 +344,8 @@ def report(rows: list[dict], prev: dict | None = None, worst: int = 10) -> dict:
 
     problems = defaultdict(int)
     for r in rows:
-        for p in r["hard"] + r["overflow"]:
-            kind = p.split(": ", 1)[-1].split(" by ")[0].split(" (")[0]
+        for p in r["hard"] + r["overflow"] + r.get("unreadable", []):
+            kind = p.split(": ", 1)[-1].split(" by ")[0].split(" (")[0].split(" font ")[0]
             problems[kind] += 1
     if problems:
         print("\n== most common problems (occurrences) ==")
@@ -314,6 +371,8 @@ def main(argv=None) -> int:
     ap.add_argument("--compare", metavar="NAME", help="show deltas vs eval/results/NAME.json")
     ap.add_argument("--worst", type=int, default=10, help="list N lowest-scoring tasks")
     ap.add_argument("--show", metavar="TASK", help="print every problem for tasks matching TASK")
+    ap.add_argument("--size", action="append", default=[], metavar="WxH",
+                    help="also run every design (from each format) into this size; repeatable")
     args = ap.parse_args(argv)
 
     resize = load_engine(args.engine)
@@ -333,18 +392,28 @@ def main(argv=None) -> int:
     print(f"engine: {args.engine}")
     summary = report(rows, prev, args.worst)
 
+    size_rows = []
+    for spec in args.size:
+        W, H = (int(v) for v in spec.lower().split("x"))
+        size_rows += [evaluate_size(resize, d, W, H) for d in drawings()
+                      if (not args.holdout or d.family.startswith(args.holdout))
+                      and (not args.source or d.format == args.source)]
+    if size_rows:
+        summary["sizes"] = report_sizes(size_rows)
+    rows_all = rows + size_rows
+
     if args.show:
-        for r in rows:
+        for r in rows_all:
             if args.show in r["task"]:
-                print(f"\n{r['task']}  score {r['score']:.1f}")
-                for p in r["hard"] + r["overflow"]:
+                print(f"\n{r['task']}  score {r.get('score', float('nan')):.1f}")
+                for p in r["hard"] + r["overflow"] + r.get("unreadable", []):
                     print(f"  - {p}")
 
     if args.save:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         path = RESULTS_DIR / f"{args.save}.json"
         path.write_text(json.dumps({"engine": args.engine, "summary": summary,
-                                    "tasks": rows}, indent=1))
+                                    "tasks": rows, "size_tasks": size_rows}, indent=1))
         print(f"\nsaved {path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path}")
     return 0
 
