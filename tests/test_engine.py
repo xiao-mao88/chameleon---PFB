@@ -539,13 +539,15 @@ class PartsTest(unittest.TestCase):
     def test_floor_ladder(self):
         """Strictest first, and each step no stricter than the last for any
         role (the strip planners binary-search the graded steps on that)."""
-        from engine.layout import LADDER, NO_FLOOR, STRICTEST
+        from engine.layout import ALL_9PX, HEADLINE_LEAD, LADDER, NO_FLOOR, STRICTEST
         self.assertEqual(list(LADDER), sorted(LADDER, reverse=True))
         for stricter, looser in zip(LADDER, LADDER[1:]):
             for role in ("headline", "action", "text"):
                 self.assertGreaterEqual(stricter.of(role), looser.of(role))
-        self.assertEqual([STRICTEST.of(r) for r in ("headline", "action", "text")],
-                         [MIN_PRIMARY] * 3)
+        roles = ("headline", "action", "text")
+        self.assertEqual([STRICTEST.of(r) for r in roles],
+                         [HEADLINE_LEAD * MIN_PRIMARY, MIN_PRIMARY, MIN_PRIMARY])
+        self.assertEqual([ALL_9PX.of(r) for r in roles], [MIN_PRIMARY] * 3)
         self.assertTrue(all(LADDER[:-1]))
         self.assertFalse(NO_FLOOR)
 

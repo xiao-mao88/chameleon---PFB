@@ -58,8 +58,12 @@ def _ladder(*levels) -> tuple[Floor, ...]:
     return tuple(Floor(len(levels) - i, *lv) for i, lv in enumerate(levels))
 
 
+HEADLINE_LEAD = 1.4     # on a canvas tight enough for 9px text, the headline keeps this lead
+HEADLINE_LEAD_COST = 0.8  # ...unless that shrinks the rest of its column below this share
+
 # Floors tried strictest first: copy takes the first one it fits under.
 LADDER = _ladder(
+    (HEADLINE_LEAD * MIN_FONT, MIN_FONT, MIN_FONT),   # hierarchy kept: headline leads
     (MIN_FONT, MIN_FONT, MIN_FONT),
     (MIN_FONT, MIN_READABLE, MIN_READABLE),
     # not all copy can be readable: the rest gives way first so the headline
@@ -73,6 +77,8 @@ LADDER = _ladder(
     (0.0, 0.0, 0.0),                          # nothing fits: everything shrinks together
 )
 STRICTEST, NO_FLOOR = LADDER[0], LADDER[-1]
+ALL_9PX = LADDER[1]       # every text readable at 9px: below it, copy is getting cramped
+LAST_UNGRADED = LADDER[2]  # below this, ordinary text gives way to the headline and CTA
 
 
 def font_scale(k: float, rel: float) -> float:
@@ -192,7 +198,7 @@ class TextItem:
     def _fit_box(self, f: float, cw: float, floor: Floor = NO_FLOOR):
         key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
-            need = floor.of(self.role)
+            need = self._need(floor)
             font = max(1.0, self.pref * f, need)
             if is_tracked(self.el):
                 self._cache[key] = self._fit_tracked(font, cw)
@@ -231,8 +237,16 @@ class TextItem:
         _, w, h = self._fit(f, cw, floor)
         return self._drawn(w, h)
 
+    def _need(self, floor: Floor) -> float:
+        """The size this text is held to. The headline's lead over 9px text
+        (the top step) never exceeds the lead it had in the source."""
+        need = floor.of(self.role)
+        if self.role == "headline" and need > MIN_FONT:
+            need = max(MIN_FONT, min(need, floor.text * self.unit.lead))
+        return need
+
     def font_ok(self, f, cw, floor):
-        return self._fit(f, cw, floor)[0] >= floor.of(self.role) - 1e-6
+        return self._fit(f, cw, floor)[0] >= self._need(floor) - 1e-6
 
     def place(self, x, y, f, cw, floor=NO_FLOOR):
         font, w, h = self._fit(f, cw, floor)
@@ -610,8 +624,23 @@ class Column:
         Everything shrinks together (hierarchy kept) while no text is at its
         floor. Text that reaches the floor stops there and the rest keeps
         shrinking. Floors are tried strictest first (LADDER); the first one
-        the copy can fit under is kept in self.floor.
+        the copy can fit under is kept in self.floor - except that the
+        headline's lead (the top step) isn't bought by shrinking the rest of
+        the column (visual, gaps) by more than HEADLINE_LEAD_COST.
         """
+        f = self._solve(cw, ch, f_max, floors)
+        if self.floor == STRICTEST and f < f_max and len(floors) > 1:
+            caps = [it.track_cap for it in self._carriers()]
+            f_plain = self._solve(cw, ch, f_max, floors[1:])
+            if f >= HEADLINE_LEAD_COST * f_plain:
+                self.floor = STRICTEST
+                for it, cap in zip(self._carriers(), caps):
+                    it.track_cap = cap
+                return f
+            return f_plain
+        return f
+
+    def _solve(self, cw, ch, f_max, floors):
         if not self.items:
             self.floor = floors[0]
             return f_max
@@ -734,7 +763,7 @@ def place_corners(a: Analysis, W, H, k):
         if b is not None and b.compact:
             # its label spilled out of the pill in the source: re-wrap it at
             # its natural size (or the floor), within the corner's share
-            floor = STRICTEST if small * s < MIN_FONT else NO_FLOOR
+            floor = ALL_9PX if small * s < MIN_FONT else NO_FLOOR
             cw = W - 2 * m if floor else max(0.35 * W, min(W - 2 * m, u.w * s))
             f = s / max(b.k, 1e-6)
             button = (b, floor, f, cw)
@@ -744,7 +773,7 @@ def place_corners(a: Analysis, W, H, k):
             # re-wrapped around a readable label) up to the canvas width
             cw = W - 2 * m
             if b is not None:
-                for floor in LADDER[:2]:      # corner badges never go below 7px
+                for floor in (ALL_9PX, LAST_UNGRADED):   # corner badges: 9px, then 7px
                     if b.font_ok(1e-3, cw, floor):
                         button = (b, floor, 1e-3, cw)
                         w, h = b.size(1e-3, cw, floor)
@@ -940,7 +969,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         quality_fs.insert(0, f)
     f_main = min(quality_fs) if quality_fs else 1.0
     floor = min(floors_used, default=STRICTEST)
-    if floor < STRICTEST:
+    if floor < ALL_9PX:
         # copy only fits as unreadable type: spread it over more columns
         units = flow                # every column's units, in reading order
         panel = frozenset(a.container_children)
@@ -950,7 +979,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         if alt is not None and alt[0] > floor:
             els = els[:copy_start] + alt[2]
             floor, f_main = alt[0], alt[1]
-        if floor < STRICTEST:
+        if floor < ALL_9PX:
             alt = two_rows(units, left, right, ch_top, ch, gap, column, max_cols, panel,
                            levels=_stricter(floor))
             if alt is not None and alt[0] > floor:
@@ -1054,14 +1083,14 @@ def _stricter(floor: Floor) -> tuple[Floor, ...]:
 
 def strictest(levels, attempt):
     """attempt(floor) at the strictest of `levels` (strictest first) where it
-    doesn't return None. The original floors (9px, then 7px) are tried in
+    doesn't return None. The ungraded floors (headline lead, 9px, 7px) are tried in
     turn; below them each level is looser for every role, so copy that fits
     one fits all looser ones and the graded levels are binary-searched."""
-    for floor in (lv for lv in levels if lv >= LADDER[1]):
+    for floor in (lv for lv in levels if lv >= LAST_UNGRADED):
         r = attempt(floor)
         if r is not None:
             return r
-    graded = [lv for lv in levels if lv < LADDER[1]]
+    graded = [lv for lv in levels if lv < LAST_UNGRADED]
     lo, hi, found = 0, len(graded) - 1, None
     while lo <= hi:
         mid = (lo + hi) // 2
@@ -1114,7 +1143,7 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
     def splits(n, floor, avail):
         """Candidate splits into n columns, as bounds tuples. The graded
         floors (a last resort) always take the DP's least-width split."""
-        if (floor >= LADDER[1] and sum(comb(n_units - 1, k) for k in range(min(max_cols, n_units)))
+        if (floor >= LAST_UNGRADED and sum(comb(n_units - 1, k) for k in range(min(max_cols, n_units)))
                 <= EXHAUSTIVE_SPLITS):
             for cuts in combinations(range(1, n_units), n - 1):
                 yield (0,) + cuts + (n_units,)
@@ -1432,7 +1461,7 @@ def _layout(a: Analysis, W: int, H: int) -> list[dict]:
     out = _finish(a, plan, W, H)
     best = (rank(plan, out, 1), out)
     _, n_small, n_bumps, _, _ = best[0]
-    if plan.floor == STRICTEST and n_small == 0 and n_bumps == 0:
+    if plan.floor >= ALL_9PX and n_small == 0 and n_bumps == 0:
         return out
     for alt in _candidates(a, W, H):
         alt_out = _finish(a, alt, W, H)

@@ -92,6 +92,7 @@ class Unit:
     reflow: bool = False        # a lone text element: font/width re-flowed
     row: int | None = None      # units sharing a row id sat side by side (badge row)
     primary: bool = False       # holds the headline (first text at the largest size)
+    lead: float = 1.0           # headline only: its font over the next-largest text's
     box: Box = field(init=False)
 
     def __post_init__(self):
@@ -321,8 +322,13 @@ def analyze(source: dict[str, Any]) -> Analysis:
             flow.remove(u)
 
     head = headline_id(els)
+    fonts = sorted((e["font_size"] for e in els if e["type"] == "text" and e.get("content")
+                    and e["id"] != head), reverse=True)
     for u in flow + [u for u, _ in corner] + visual_parts:
         u.primary = head is not None and any(e["id"] == head for e in u.els)
+        if u.primary:
+            head_font = next(e["font_size"] for e in u.els if e["id"] == head)
+            u.lead = head_font / fonts[0] if fonts and fonts[0] > 0 else float("inf")
 
     texts = [e for u in flow if u.reflow for e in u.els]
     centered = bool(texts) and sum(e.get("text_align") == "center" for e in texts) > len(texts) / 2
