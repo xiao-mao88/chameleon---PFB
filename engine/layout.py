@@ -545,6 +545,19 @@ def ink_insets(item) -> tuple[float, float]:
     return max(0.0, (ib[1] - b[1]) / h), max(0.0, (b[3] - ib[3]) / h)
 
 
+def left_inset(item) -> float:
+    """An item's transparent left margin, as a fraction of its width: a logo
+    (or a row led by one) whose pixels start well inside its box."""
+    if isinstance(item, TextItem):
+        return 0.0
+    b = _item_box(item)
+    w = b[2] - b[0]
+    if w <= 0:
+        return 0.0
+    units = item.units if isinstance(item, LineItem) else [item.unit]
+    return max(0.0, (union(visible(e) for u in units for e in u.els)[0] - b[0]) / w)
+
+
 def source_gaps(items, src_h: float) -> list[float]:
     """Source gaps between consecutive items, measured between what is
     visible (an image's transparent margins don't count as space)."""
@@ -679,7 +692,10 @@ class Column:
         cy = y + (ch - total) / 2 if valign == "center" else y
         out = []
         for i, (it, (w, h)) in enumerate(zip(self.items, sizes)):
-            ix = x + (cw - w) / 2 if align == "center" else x
+            if align == "center":
+                ix = x + (cw - w) / 2
+            else:   # left: line up what is visible with the text's edge
+                ix = max(0.0, x - left_inset(it) * w)
             out += it.place(ix, cy, f, cw, self.floor)
             cy += h + (gaps[i] if i < len(gaps) else 0)
         return out
