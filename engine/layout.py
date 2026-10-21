@@ -28,7 +28,7 @@ from dataclasses import dataclass, replace
 from itertools import combinations
 
 from engine.analyze import Analysis, Unit, area, box_of, rows_of, union, xy_order
-from engine.critic import collisions, unreadable
+from engine.critic import collisions, unreadable, visible
 
 try:
     from engine.textmeasure import measure_text
@@ -522,10 +522,36 @@ def _item_box(item):
     return item.unit.box
 
 
+def _item_els(item):
+    if isinstance(item, LineItem):
+        return [e for u in item.units for e in u.els]
+    return item.unit.els
+
+
+def ink_insets(item) -> tuple[float, float]:
+    """(top, bottom) transparent margins of a rigid item, as fractions of its
+    height: images whose visible pixels stop short of their box. Re-flowed
+    text and re-wrapped rows have none."""
+    if isinstance(item, (TextItem, LineItem)):
+        return 0.0, 0.0
+    b = _item_box(item)
+    h = b[3] - b[1]
+    if h <= 0:
+        return 0.0, 0.0
+    ib = union(visible(e) for e in _item_els(item))
+    return max(0.0, (ib[1] - b[1]) / h), max(0.0, (b[3] - ib[3]) / h)
+
+
 def source_gaps(items, src_h: float) -> list[float]:
+    """Source gaps between consecutive items, measured between what is
+    visible (an image's transparent margins don't count as space)."""
     gaps = []
     for a, b in zip(items, items[1:]):
-        g = _item_box(b)[1] - _item_box(a)[3]
+        ta, ba = ink_insets(a)
+        tb, _ = ink_insets(b)
+        ha = _item_box(a)[3] - _item_box(a)[1]
+        hb = _item_box(b)[3] - _item_box(b)[1]
+        g = (_item_box(b)[1] + tb * hb) - (_item_box(a)[3] - ba * ha)
         gaps.append(min(max(g, 0.0), GAP_CAP * src_h))
     return gaps
 
@@ -541,10 +567,18 @@ class Column:
     k: float
     min_gap: float
     floor: float = 0.0          # px: text in this column stays at or above it
+    insets: list | None = None  # per item (top, bottom) transparent margins
 
     def heights(self, f, cw):
+        """Item sizes and the gaps between them. A gap is the space between
+        visible content: boxes may overlap by an image's transparent margin."""
         sizes = [it.size(f, cw, self.floor) for it in self.items]
         gaps = [max(g * self.k * f, self.min_gap * min(1.0, f * 2)) for g in self.gaps]
+        if self.insets is None:
+            self.insets = [ink_insets(it) for it in self.items]
+        for i in range(len(gaps)):
+            gaps[i] -= (self.insets[i][1] * sizes[i][1]
+                        + self.insets[i + 1][0] * sizes[i + 1][1])
         return sizes, gaps
 
     def total(self, f, cw):
@@ -814,10 +848,13 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
             vx = left if vis_left else right - vw
         els += place_rigid(a.visual, vx, vy, s)
         gap = VISUAL_GAP * min(W, H) + m * 0.5
+        # the copy starts at the visual's visible edge, not its box edge
+        vb, ib = a.visual.box, union(visible(e) for e in a.visual.els)
+        bw = max(vb[2] - vb[0], 1e-6)
         if vis_left:
-            left = vx + vw + gap
+            left = vx + vw * (1 - max(0.0, vb[2] - ib[2]) / bw) + gap
         else:
-            right = vx - gap
+            right = vx + vw * max(0.0, ib[0] - vb[0]) / bw - gap
 
     # Columns: [lead images (strip only)] [main copy] [buttons (wide only)]
     lead, main, action = [], [], []

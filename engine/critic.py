@@ -9,13 +9,17 @@ shape. A pair that already overlapped in the source was a design choice
 is one where an opaque shape drawn between the two covers the text (text on
 a panel that hides the stripes behind it), nor text lying wholly on a solid
 shape (a headline set on the horizon band, as the Solstice designers do):
-what reads as a collision is text cut by a shape's edge.
+what reads as a collision is text cut by a shape's edge. Images are
+measured by their visible pixels (engine.assets.ink_box): text over a
+logo's transparent margin isn't touching the logo.
 
 unreadable(): texts set below the readability floors (7px, or 9px for the
 headline) - what the renderer will draw too small to read.
 """
 
 import math
+
+from engine.assets import ink_box
 
 
 def drawn(e: dict) -> tuple[float, float, float, float]:
@@ -29,9 +33,14 @@ def drawn(e: dict) -> tuple[float, float, float, float]:
     return x0, y0, x0 + w, y0 + h
 
 
+def visible(e: dict) -> tuple[float, float, float, float]:
+    """What is painted: an image's visible pixels, anything else's drawn box."""
+    return ink_box(e) if e.get("type") == "image" and not e.get("rotation") else drawn(e)
+
+
 def overlap(a: dict, b: dict) -> float:
-    ax0, ay0, ax1, ay1 = drawn(a)
-    bx0, by0, bx1, by1 = drawn(b)
+    ax0, ay0, ax1, ay1 = visible(a)
+    bx0, by0, bx1, by1 = visible(b)
     return max(0.0, min(ax1, bx1) - max(ax0, bx0)) * max(0.0, min(ay1, by1) - max(ay0, by0))
 
 
