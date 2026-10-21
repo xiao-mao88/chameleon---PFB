@@ -965,6 +965,10 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         f = c.solve(cw, ch, 1.0)
         floors_used.append(c.floor)
         w = c.width(f, cw)
+        if act_cols and not lead_cols and not strip:
+            # split the free width evenly either side of the copy, rather
+            # than leaving it all between the copy and the CTA column
+            x += max(0.0, xr - x - min(w, cw)) / 2
         els += c.place(x, ch_top, max(w, 1.0) if w < cw else cw, ch, f, "left")
         quality_fs.insert(0, f)
     f_main = min(quality_fs) if quality_fs else 1.0

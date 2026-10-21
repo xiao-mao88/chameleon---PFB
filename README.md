@@ -38,12 +38,19 @@ tuned to a particular design or size.
    or copy, and put the copy in reading order.
 2. **Lay out** (`layout.py`): arrange those pieces for the new shape:
    - **Tall canvases** stack everything in one centred column.
-   - **Wide canvases** put the hero image beside the copy.
+   - **Wide canvases** put the hero image beside the copy, with the free
+     space split evenly around the copy so the CTA isn't stranded.
    - **Very thin banners** spread the copy across several columns.
+
+   Images line up with text by their visible pixels, not their boxes, so a
+   logo with transparent margins sits flush with the headline.
 
    Text sizes scale with the canvas, then shrink until everything fits. Text
    never goes below 9px (headline) or 7px (everything else) if anything else
-   can give way. When a format is too small for all the copy to be readable,
+   can give way. On cramped canvases the headline keeps up to 1.4× the
+   size of the other text (never more lead than the original design had),
+   unless that would shrink the product image too much. When a format is
+   too small for all the copy to be readable,
    the less important text gives way first, so the headline and the call to
    action stay readable. If the first arrangement leaves text unreadable or
    overlapping, every alternative is tried, and `critic.py` picks the best.
@@ -71,7 +78,7 @@ them.
 | On our 504 hand-drawn layouts | Score | Valid | No text overflow | Readable | No overlaps |
 |---|---|---|---|---|---|
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
-| **Now** | **57.3** | 100% | 100% | **100%** | **100%** |
+| **Now** | **57.5** | 100% | 100% | **100%** | **100%** |
 
 On the tiniest web banners, the headline and call to action stay readable
 in every design:
@@ -81,7 +88,8 @@ in every design:
 | Headline and CTA readable | 100% (was 78%) | 100% (was 95%) | 100% (was 95%) |
 | All text readable | 77% | 95% | 95% |
 
-All tests pass. The slowest single resize takes about 6 seconds.
+All tests pass. The slowest single resize takes about 6 seconds (up to about
+12 seconds in the Docker image on an Apple-silicon Mac, which emulates amd64).
 
 ## Known limitations
 
