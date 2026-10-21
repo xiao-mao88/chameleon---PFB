@@ -58,7 +58,7 @@ Two helpers keep this accurate:
 | Command | What it does |
 |---|---|
 | `python -m unittest discover tests` | Runs 35 designs, including 20 generated edge cases (40 text boxes, rotated text, very long labels, missing images…), into 26 real platform sizes (Instagram, Story, YouTube, LinkedIn, standard web ad sizes such as 728×90 and 320×50, and more). Checks the hard rules, text overflow, readability, overlaps, contrast and speed. About 2 minutes. |
-| `python -m tools.evaluate` | Compares the output with 504 layouts hand-drawn by designers (`adobe-projchameleon/`) and gives a 0–100 similarity score. Add `--save NAME` / `--compare NAME` to track changes, `--size 320x50` to also run sizes with no hand-drawn answer, and `--contrast 0.2` to check text contrast on a 20% sample. |
+| `python -m tools.evaluate` | Compares the output with 504 layouts our team drew by hand (`adobe-projchameleon/`) and gives a 0–100 similarity score. Add `--save NAME` / `--compare NAME` to track changes, `--size 320x50` to also run sizes with no hand-drawn answer, and `--contrast 0.2` to check text contrast on a 20% sample. |
 | `python -m tools.make_inputs` | Regenerates the sample tasks in `input/` so you can inspect the PNGs after `python -m engine.main`. |
 
 The hand-drawn layouts are used only for testing. The engine never copies
@@ -66,7 +66,7 @@ them.
 
 ## Results
 
-| On the 504 designer layouts | Score | Valid | No text overflow | Readable | No overlaps |
+| On our 504 hand-drawn layouts | Score | Valid | No text overflow | Readable | No overlaps |
 |---|---|---|---|---|---|
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
 | **Now** | **57.3** | 100% | 100% | **100%** | **100%** |
@@ -80,7 +80,7 @@ All tests pass. The slowest single resize takes under 5 seconds.
   stay readable). The tests list these cases and why.
 - **Letter-spacing can be reduced** to make text fit. Text is never cut off.
 - **The similarity score is a proxy.** It measures closeness to one
-  designer's choices. The official judge scores the rendered image.
+  set of hand-made choices (our own, not official). The official judge scores the rendered image.
 - **Nothing is hidden.** Every element must stay, so on tiny canvases
   nothing is dropped to save space.
 
@@ -90,7 +90,7 @@ All tests pass. The slowest single resize takes under 5 seconds.
 engine/                the engine (resize.py is the entry point)
 tests/                 test_engine.py
 tools/                 evaluate.py · make_inputs.py · dataset.py
-adobe-projchameleon/   designer layouts, used for testing only
+adobe-projchameleon/   our hand-drawn layouts, used for testing only
 input/  output/        tasks in, JSON + PNG out
 renderer/  brand_kit/  official renderer, fonts and images
 eval/results/          saved evaluation runs
