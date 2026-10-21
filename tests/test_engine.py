@@ -93,9 +93,6 @@ KNOWN_LIMITATIONS = {
     ("novel_rotated_all", "mobile_banner"):
         "a 30°-rotated headline in 320x50: at 9px its rotated bounds are 42px "
         "tall at best, the strip has 40px",
-    ("novel_letter_spacing", "medium_rectangle"):
-        "Level 3 with 8px tracking on every line into 300x250: pills keep their "
-        "(scaled) tracking and wrap to 3 lines, leaving ~5px too little height",
 }
 
 

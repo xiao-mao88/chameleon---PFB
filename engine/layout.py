@@ -93,14 +93,16 @@ def tracked(el: dict, font: float, t: float = 1.0) -> dict:
 
 
 TRACKING_STEPS = (1.0, 0.75, 0.5, 0.25, 0.0)
+TRACKING_CAPS = (1.0, 0.5, 0.0)  # a column that can't fit tries tighter tracking before a lower floor
 
 
-def fit_tracking(el: dict, font: float, width: float):
-    """Largest tracking step whose drawn lines fit `width`. The renderer
-    breaks lines on untracked widths and then draws them wider, so wrapped
-    tracked text can't fit at any font size; loosen the tracking instead
-    (short tracked labels on one line keep it all). Returns (el, measure)."""
-    for t in TRACKING_STEPS:
+def fit_tracking(el: dict, font: float, width: float, cap: float = 1.0):
+    """Largest tracking step (at most `cap`) whose drawn lines fit `width`.
+    The renderer breaks lines on untracked widths and then draws them wider,
+    so wrapped tracked text can't fit at any font size; loosen the tracking
+    instead (short tracked labels on one line keep it all). Returns
+    (el, measure)."""
+    for t in (t for t in TRACKING_STEPS if t <= cap):
         e = tracked(el, font, t)
         m = measure(e, font, width)
         if m[0] <= width - 0.5:
@@ -149,7 +151,8 @@ class TextItem:
         self.primary = unit.primary            # the headline keeps MIN_FONT
         self.align = align
         self._cache: dict = {}
-        self._styled: dict = {}     # (font, width) -> el with fitted tracking
+        self._styled: dict = {}     # (font, width, cap) -> el with fitted tracking
+        self.track_cap = 1.0        # most tracking this item may keep (set by Column.solve)
         r = math.radians(float(self.el.get("rotation") or 0.0))
         self.rot = (abs(math.cos(r)), abs(math.sin(r))) if r else None
 
@@ -165,7 +168,7 @@ class TextItem:
             return self._fit_box(f, cw, floor)
         # rotated: of the boxes whose rotated bounds fit the column width,
         # the one that is least tall once drawn (columns stack vertically)
-        key = ("rot", round(f, 4), round(cw, 1), floor)
+        key = ("rot", round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
             best = None
             for i in range(12):
@@ -179,7 +182,7 @@ class TextItem:
         return self._cache[key]
 
     def _fit_box(self, f: float, cw: float, floor: float = 0.0):
-        key = (round(f, 4), round(cw, 1), floor)
+        key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
             if floor and self.primary:
                 floor = max(floor, MIN_FONT)
@@ -211,11 +214,11 @@ class TextItem:
         w = cw
         for _ in range(12):
             font = math.ceil(font * 100) / 100      # finalize rounds font_size
-            el, (tw, th, _) = fit_tracking(self.el, font, w)
+            el, (tw, th, _) = fit_tracking(self.el, font, w, self.track_cap)
             if tw <= w - 0.5 or font <= 1.0:
                 break
             font = max(1.0, font * max(0.85, (w - 0.5) / tw * 0.98))
-        self._styled[(font, w)] = el
+        self._styled[(font, w, self.track_cap)] = el
         return font, w, th + 0.15 * font
 
     def size(self, f, cw, floor=0.0):
@@ -228,7 +231,7 @@ class TextItem:
 
     def place(self, x, y, f, cw, floor=0.0):
         font, w, h = self._fit(f, cw, floor)
-        el = dict(self._styled.get((font, w), self.el))
+        el = dict(self._styled.get((font, w, self.track_cap), self.el))
         dw, dh = self._drawn(w, h)       # (x, y) is where the drawn bounds start
         el.update(x=x + (dw - w) / 2, y=y + (dh - h) / 2, width=w, height=h, font_size=font)
         if self.align:
@@ -272,6 +275,7 @@ class ButtonItem(RigidItem):
         super().__init__(unit, k, max_fs)
         self.compact = compact      # always re-wrap (pills in a wrapped row)
         self._styled: dict = {}     # reflow key -> label with fitted tracking
+        self.track_cap = 1.0        # most tracking the label may keep (set by Column.solve)
         self.shape = next(e for e in unit.els if e["type"] == "shape")
         self.label = next(e for e in unit.els if e["type"] == "text")
         sh, lb = self.shape, self.label
@@ -292,21 +296,21 @@ class ButtonItem(RigidItem):
         if not self.compact and (not floor or
                                  self.label["font_size"] * self.scale(f, cw, floor) >= floor - 1e-6):
             return None
-        key = (round(f, 4), round(cw, 1), floor)
+        key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
             font = max(floor, self.label["font_size"] * rigid, 1.0)
             px, py = self.pad_x * font, self.pad_y * font
             inner = max(cw - 2 * px, 1.0)
-            lb, (tw, th, _) = fit_tracking(self.label, font, inner)
+            lb, (tw, th, _) = fit_tracking(self.label, font, inner, self.track_cap)
             for _ in range(8):                # a word (or tracking) too wide
                 if tw <= inner - 0.5 or font <= 1.0:
                     break
                 font = max(1.0, font * max(0.85, (inner - 0.5) / tw * 0.98))
                 px, py = self.pad_x * font, self.pad_y * font
                 inner = max(cw - 2 * px, 1.0)
-                lb, (tw, th, _) = fit_tracking(self.label, font, inner)
+                lb, (tw, th, _) = fit_tracking(self.label, font, inner, self.track_cap)
             font = math.ceil(font * 100) / 100   # finalize rounds font_size
-            lb, (tw, th, _) = fit_tracking(self.label, font, inner)
+            lb, (tw, th, _) = fit_tracking(self.label, font, inner, self.track_cap)
             lw = inner if is_tracked(lb) else min(inner, tw + 2)
             # same guard as TextItem: rounding must not flip a line break
             tw2, th2, _ = measure(lb, font, lw - 0.5)
@@ -345,7 +349,7 @@ class ButtonItem(RigidItem):
                 if isinstance(e.get("stroke_width"), (int, float)):
                     el["stroke_width"] = e["stroke_width"] * font / self.label["font_size"]
             else:
-                el = dict(self._styled[(round(f, 4), round(cw, 1), floor)])
+                el = dict(self._styled[(round(f, 4), round(cw, 1), floor, self.track_cap)])
                 el.update(x=x + px, y=y + py, width=lw, height=lh, font_size=font,
                           text_align="center")
             out.append(el)
@@ -603,12 +607,21 @@ class Column:
             return self.total(f, cw) <= ch and (
                 not self.floor or all(it.font_ok(f, cw, self.floor) for it in self.items))
 
+        caps = TRACKING_CAPS if self._tracked() else (1.0,)
+        done = False
         for floor in floors:
             self.floor = floor
-            if ok(f_max):
-                return f_max
-            if floor and ok(1e-3):
+            for cap in caps:            # tighter tracking before a lower floor
+                self._set_cap(cap)
+                if ok(f_max):
+                    return f_max
+                if floor and ok(1e-3):
+                    done = True
+                    break
+            if done:
                 break
+            if floor:
+                self._set_cap(1.0)
         if self.floor == 0.0:
             # no floor: the original rule - keep the smallest text at
             # MIN_FONT if that alone is enough, else shrink everything
@@ -623,6 +636,23 @@ class Column:
             else:
                 hi = mid
         return max(lo, 1e-3)
+
+    def _carriers(self):
+        """Items whose tracking can be tightened (pills in a badge row too)."""
+        for it in self.items:
+            if hasattr(it, "track_cap"):
+                yield it
+            for b in getattr(it, "pills", None) or ():
+                if hasattr(b, "track_cap"):
+                    yield b
+
+    def _tracked(self) -> bool:
+        return any(is_tracked(getattr(it, "el", None) or getattr(it, "label", None) or {})
+                   for it in self._carriers())
+
+    def _set_cap(self, cap: float) -> None:
+        for it in self._carriers():
+            it.track_cap = cap
 
     def min_width(self, ch, floor, avail):
         """Narrowest width at which this column fits in ch with text kept at
