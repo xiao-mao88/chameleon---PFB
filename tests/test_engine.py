@@ -454,3 +454,58 @@ class EngineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartsTest(unittest.TestCase):
+    """The engine's building blocks, on hand-made cases."""
+
+    def test_ink_box(self):
+        from engine.assets import ink_box
+        bottle = {"type": "image", "x": 0, "y": 0, "width": 800, "height": 800,
+                  "asset_id": "solstice_bottle.png"}
+        self.assertEqual(tuple(round(v) for v in ink_box(bottle)), (230, 130, 571, 681))
+        # contain in a wider box: the image is centred, its pixels move with it
+        wide = dict(bottle, width=1000, fit="contain")
+        self.assertEqual(tuple(round(v) for v in ink_box(wide)), (330, 130, 671, 681))
+        self.assertEqual(ink_box(dict(bottle, fit="cover")), (0, 0, 800, 800))
+        self.assertEqual(ink_box(dict(bottle, asset_id="no_such_file.png")), (0, 0, 800, 800))
+        text = {"type": "text", "x": 5, "y": 6, "width": 7, "height": 8}
+        self.assertEqual(ink_box(text), (5, 6, 12, 14))
+
+    def test_collisions_use_visible_pixels(self):
+        from engine.critic import collisions
+        logo = {"id": "logo", "type": "image", "x": 0, "y": 0, "width": 900, "height": 300,
+                "asset_id": "solstice_logo_lockup.png", "z_index": 1}
+        text = {"id": "t", "type": "text", "content": "Hi", "x": 0, "y": 0, "width": 200,
+                "height": 60, "z_index": 2}
+        source = [dict(logo), dict(text, y=400)]
+        # the logo's left 29% is transparent: text there touches nothing
+        self.assertEqual(collisions(source, [logo, dict(text, x=10, y=100)], 900, 500), [])
+        hit = collisions(source, [logo, dict(text, x=350, y=100)], 900, 500)
+        self.assertEqual(len(hit), 1)
+        self.assertIn("t collides with logo", hit[0])
+
+    def test_rank_avoids_a_colliding_preferred_plan(self):
+        """If the rules' preferred arrangement collides, a collision-free
+        candidate wins."""
+        from engine import layout as L
+        from engine.analyze import analyze
+        from engine.critic import collisions
+        src = _sample("level2")
+        W, H = 1080, 1350
+        real = L._preferred
+
+        def colliding(a, W, H):
+            plan = real(a, W, H)
+            els = [dict(e) for e in plan.elements]
+            vis = next(e for e in els if e["type"] == "image")
+            head = max((e for e in els if e["type"] == "text"), key=lambda e: e["font_size"])
+            head.update(x=vis["x"] + vis["width"] / 2 - head["width"] / 2,
+                        y=vis["y"] + vis["height"] / 2 - head["height"] / 2)
+            return L.Plan(els, plan.quality, plan.floor)
+
+        a = analyze(copy.deepcopy(src))
+        with mock.patch.object(L, "_preferred", colliding):
+            self.assertNotEqual(collisions(a.elements, L._finish(a, colliding(a, W, H), W, H), W, H), [])
+            out = L._layout(a, W, H)
+        self.assertEqual(collisions(a.elements, out, W, H), [])
