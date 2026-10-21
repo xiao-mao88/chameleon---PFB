@@ -1095,10 +1095,9 @@ def strip_columns(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset
     # spread the slack between columns so the strip reads evenly
     slack = (x1 - x0) - sum(used)
     g = slack / (len(cols) - 1) if len(cols) > 1 else 0.0
-    x = x0 if len(cols) > 1 else x0 + 0.0
+    x = x0
     out = []
     for c, w, u, f in zip(cols, widths, used, fs):
-        c.floor = floor
         out += c.place(x, y, w, ch, f, "left")   # fitted at w: same line breaks
         x += u + g
     return floor, f_min, out
