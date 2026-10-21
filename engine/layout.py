@@ -40,12 +40,14 @@ MIN_FONT = MIN_HEADLINE  # 9px: smallest font any reference uses; fitting won't 
 
 @dataclass(frozen=True, order=True)
 class Floor:
-    """The least font size text may shrink to, per role (Unit.role).
-    Floors compare by strictness: the stricter one is the greater."""
+    """The least font size text may shrink to, per role (Unit.role), and
+    the least visible height a logo ("mark") keeps. Floors compare by
+    strictness: the stricter one is the greater."""
     strictness: int
     headline: float = field(compare=False)
     action: float = field(compare=False)     # a standalone button's label
     text: float = field(compare=False)       # everything else
+    mark: float = field(default=0.0, compare=False)   # px of visible logo height
 
     def of(self, role: str) -> float:
         return getattr(self, role)
@@ -60,11 +62,16 @@ def _ladder(*levels) -> tuple[Floor, ...]:
 
 HEADLINE_LEAD = 1.4     # on a canvas tight enough for 9px text, the headline keeps this lead
 HEADLINE_LEAD_COST = 0.8  # ...unless that shrinks the rest of its column below this share
+MARK_MIN = 3 * MIN_FONT   # a logo this tall keeps its wordmark about as big as 9px text
 
-# Floors tried strictest first: copy takes the first one it fits under.
+# Floors tried strictest first: copy takes the first one it fits under. Each
+# step that keeps the logo at its size is followed by the same text floor
+# without it: the logo gives way before any text does.
 LADDER = _ladder(
-    (HEADLINE_LEAD * MIN_FONT, MIN_FONT, MIN_FONT),   # hierarchy kept: headline leads
+    (HEADLINE_LEAD * MIN_FONT, MIN_FONT, MIN_FONT, MARK_MIN),   # headline leads
+    (MIN_FONT, MIN_FONT, MIN_FONT, MARK_MIN),
     (MIN_FONT, MIN_FONT, MIN_FONT),
+    (MIN_FONT, MIN_READABLE, MIN_READABLE, 2 * MARK_MIN / 3),
     (MIN_FONT, MIN_READABLE, MIN_READABLE),
     # not all copy can be readable: the rest gives way first so the headline
     # and the call to action still read, then the headline down to 7px
@@ -77,8 +84,8 @@ LADDER = _ladder(
     (0.0, 0.0, 0.0),                          # nothing fits: everything shrinks together
 )
 STRICTEST, NO_FLOOR = LADDER[0], LADDER[-1]
-ALL_9PX = LADDER[1]       # every text readable at 9px: below it, copy is getting cramped
-LAST_UNGRADED = LADDER[2]  # below this, ordinary text gives way to the headline and CTA
+ALL_9PX = LADDER[2]       # every text readable at 9px: below it, copy is getting cramped
+LAST_UNGRADED = LADDER[4]  # below this, ordinary text gives way to the headline and CTA
 
 
 def font_scale(k: float, rel: float) -> float:
@@ -267,12 +274,15 @@ class RigidItem:
         self.min_f = floor / self.k
         self.small = _smallest_font(unit.els)
         self.role = unit.role
+        self.mark_h = _mark_height([unit])
 
     def scale(self, f, cw, floor=NO_FLOOR):
         s = self.k * f
         need = floor.of(self.role)
         if self.small and need:
             s = max(s, need / self.small)
+        elif self.mark_h and need:
+            s = max(s, need / self.mark_h)
         return max(1e-3, min(s, cw / max(self.unit.w, 1e-6)))
 
     def size(self, f, cw, floor=NO_FLOOR):
@@ -280,11 +290,20 @@ class RigidItem:
         return self.unit.w * s, self.unit.h * s
 
     def font_ok(self, f, cw, floor):
-        return (not self.small
-                or self.small * self.scale(f, cw, floor) >= floor.of(self.role) - 1e-6)
+        s = self.scale(f, cw, floor)
+        if self.mark_h:     # a logo: held at its least visible height
+            return self.mark_h * s >= floor.mark - 1e-6
+        return not self.small or self.small * s >= floor.of(self.role) - 1e-6
 
     def place(self, x, y, f, cw, floor=NO_FLOOR):
         return place_rigid(self.unit, x, y, self.scale(f, cw, floor))
+
+
+def _mark_height(units: list[Unit]) -> float | None:
+    """Visible height, in source px, of the smallest logo among units."""
+    hs = [visible(u.els[0])[3] - visible(u.els[0])[1] for u in units if u.role == "mark"]
+    hs = [h for h in hs if h > 0]
+    return min(hs) if hs else None
 
 
 class ButtonItem(RigidItem):
@@ -390,6 +409,7 @@ class LineItem:
         self.min_f = floor / self.k
         self.box = union(u.box for u in units)
         self.small = _smallest_font([e for u in units for e in u.els])
+        self.mark_h = _mark_height(units)
         xs = sorted(units, key=lambda u: u.box[0])
         gaps = [max(0.0, b.box[0] - a.box[2]) for a, b in zip(xs, xs[1:])]
         self.gap = sum(gaps) / len(gaps) if gaps else 0.0
@@ -420,6 +440,8 @@ class LineItem:
         s = self.k * f
         if self.small and floor:
             s = max(s, floor.text / self.small)
+        if self.mark_h and floor.mark:
+            s = max(s, floor.mark / self.mark_h)
         if self.spilled:
             return 0, s
         w, _ = self._extent(len(self.units))
@@ -467,7 +489,8 @@ class LineItem:
         per, s = self._fit(f, cw, floor)
         if per == 0:
             return all(b.font_ok(f, cw, floor) for b in self.pills)
-        return not self.small or self.small * s >= floor.text - 1e-6
+        return ((not self.small or self.small * s >= floor.text - 1e-6)
+                and (not self.mark_h or self.mark_h * s >= floor.mark - 1e-6))
 
     def place(self, x, y, f, cw, floor=NO_FLOOR):
         per, s = self._fit(f, cw, floor)
@@ -522,7 +545,7 @@ class VisualItem(RigidItem):
 
     def __init__(self, unit: Unit, k: float):
         self.unit, self.k, self.min_f = unit, k, 0.0
-        self.small, self.role = None, "text"
+        self.small, self.role, self.mark_h = None, "text", None
 
 
 def make_items(units: list[Unit], k: float, align: str | None, max_fs: float):
@@ -755,7 +778,11 @@ def place_corners(a: Analysis, W, H, k):
     m = margin(W, H)
     out, top, bottom = [], 0.0, 0.0
     for u, where in a.corner:
-        s = min(k, 0.22 * min(W, H) / max(u.h, 1e-6), 0.35 * W / max(u.w, 1e-6))
+        cap = min(0.22 * min(W, H) / max(u.h, 1e-6), 0.35 * W / max(u.w, 1e-6))
+        s = min(k, cap)
+        mark_h = _mark_height([u])
+        if mark_h:                  # a logo: visible at MARK_MIN if the corner allows
+            s = max(s, min(MARK_MIN / mark_h, cap))
         w, h = u.w * s, u.h * s
         small = _smallest_font(u.els)
         button = None

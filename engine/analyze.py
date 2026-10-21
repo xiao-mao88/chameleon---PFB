@@ -142,11 +142,14 @@ class Unit:
     def role(self) -> str:
         """How much its text matters when not all copy can be readable:
         "headline", "action" (a standalone button - not one of a badge
-        row, which share one size) or "text"."""
+        row, which share one size), "mark" (a lone image: a logo) or
+        "text"."""
         if self.primary and self.reflow:
             return "headline"
         if self.is_button and self.row is None:
             return "action"
+        if len(self.els) == 1 and self.els[0]["type"] == "image":
+            return "mark"
         return "text"
 
 

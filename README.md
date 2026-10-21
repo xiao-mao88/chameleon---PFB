@@ -43,7 +43,9 @@ tuned to a particular design or size.
    - **Very thin banners** spread the copy across several columns.
 
    Images line up with text by their visible pixels, not their boxes, so a
-   logo with transparent margins sits flush with the headline.
+   logo with transparent margins sits flush with the headline. A logo keeps
+   at least 27px of visible height (18px when text is at 7px) wherever that
+   doesn't cost any text its readable size.
 
    Text sizes scale with the canvas, then shrink until everything fits. Text
    never goes below 9px (headline) or 7px (everything else) if anything else
@@ -78,7 +80,7 @@ them.
 | On our 504 hand-drawn layouts | Score | Valid | No text overflow | Readable | No overlaps |
 |---|---|---|---|---|---|
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
-| **Now** | **57.5** | 100% | 100% | **100%** | **100%** |
+| **Now** | **57.7** | 100% | 100% | **100%** | **100%** |
 
 On the tiniest web banners, the headline and call to action stay readable
 in every design:
@@ -88,8 +90,8 @@ in every design:
 | Headline and CTA readable | 100% (was 78%) | 100% (was 95%) | 100% (was 95%) |
 | All text readable | 77% | 95% | 95% |
 
-All tests pass. The slowest single resize takes about 6 seconds (up to about
-12 seconds in the Docker image on an Apple-silicon Mac, which emulates amd64).
+All tests pass. The slowest single resize takes about 8 seconds (up to about
+15 seconds in the Docker image on an Apple-silicon Mac, which emulates amd64).
 
 ## Known limitations
 

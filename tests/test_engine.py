@@ -411,6 +411,24 @@ class EngineTest(unittest.TestCase):
             self.assertEqual(key_copy_unreadable(src, out["elements"]), [])
         self.each(check, skip=KEY_COPY_LIMITS)
 
+    def test_logos_visible(self):
+        """A lone image in the copy or a corner (a logo) stays recognisable -
+        at least 18px of visible height - wherever the canvas has room
+        (short side 250px or more). Smaller formats give text priority."""
+        from engine.analyze import analyze
+        from engine.critic import visible
+
+        def check(src, W, H, out, _):
+            if min(W, H) < 250:
+                return
+            a = analyze(src)
+            by = {e["id"]: e for e in out["elements"]}
+            for u in a.flow + [u for u, _ in a.corner]:
+                if u.role == "mark":
+                    vb = visible(by[u.els[0]["id"]])
+                    self.assertGreaterEqual(vb[3] - vb[1], 18, u.els[0]["id"])
+        self.each(check)
+
     def test_key_copy_limits(self):
         print(f"\nheadline/CTA limitations ({len(KEY_COPY_LIMITS)}):")
         for (sname, tname), why in KEY_COPY_LIMITS.items():
@@ -539,11 +557,17 @@ class PartsTest(unittest.TestCase):
     def test_floor_ladder(self):
         """Strictest first, and each step no stricter than the last for any
         role (the strip planners binary-search the graded steps on that)."""
-        from engine.layout import ALL_9PX, HEADLINE_LEAD, LADDER, NO_FLOOR, STRICTEST
+        from engine.layout import (ALL_9PX, HEADLINE_LEAD, LADDER, LAST_UNGRADED, MARK_MIN,
+                                   NO_FLOOR, STRICTEST)
         self.assertEqual(list(LADDER), sorted(LADDER, reverse=True))
         for stricter, looser in zip(LADDER, LADDER[1:]):
             for role in ("headline", "action", "text"):
                 self.assertGreaterEqual(stricter.of(role), looser.of(role))
+        # the logo minimum gives way before any text floor, and is off on the
+        # graded steps (all the binary search needs)
+        self.assertEqual(STRICTEST.mark, MARK_MIN)
+        self.assertEqual(ALL_9PX.mark, 0)
+        self.assertTrue(all(lv.mark == 0 for lv in LADDER if lv <= LAST_UNGRADED))
         roles = ("headline", "action", "text")
         self.assertEqual([STRICTEST.of(r) for r in roles],
                          [HEADLINE_LEAD * MIN_PRIMARY, MIN_PRIMARY, MIN_PRIMARY])
