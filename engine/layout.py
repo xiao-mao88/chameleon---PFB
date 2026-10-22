@@ -1139,6 +1139,13 @@ def two_rows(units, x0, x1, y, ch, gap, column, max_cols=4, panel=frozenset(),
     return strictest(levels, attempt)
 
 
+def _text_rank(floor: Floor) -> int:
+    """How strict a floor is for text alone: a step that also holds the logo
+    ranks the same as its text-only twin."""
+    return max(lv.strictness for lv in LADDER
+               if (lv.headline, lv.action, lv.text) == (floor.headline, floor.action, floor.text))
+
+
 def _stricter(floor: Floor) -> tuple[Floor, ...]:
     return tuple(lv for lv in LADDER[:-1] if lv > floor)
 
@@ -1516,13 +1523,14 @@ def _layout(a: Analysis, W: int, H: int) -> list[dict]:
     something - then every candidate is finished and ranked by (floor,
     fewest unreadable texts, fewest collisions, preferred, quality)."""
     def rank(plan, out, preferred):
-        return (plan.floor, -unreadable(a.elements, out),
-                -len(collisions(a.elements, out, W, H)), preferred, plan.quality)
+        # the logo minimum only breaks ties: it never picks the arrangement
+        return (_text_rank(plan.floor), -unreadable(a.elements, out),
+                -len(collisions(a.elements, out, W, H)), preferred, plan.floor.mark, plan.quality)
 
     plan = _preferred(a, W, H)
     out = _finish(a, plan, W, H)
     best = (rank(plan, out, 1), out)
-    _, n_small, n_bumps, _, _ = best[0]
+    _, n_small, n_bumps, _, _, _ = best[0]
     if plan.floor >= ALL_9PX and n_small == 0 and n_bumps == 0:
         return out
     for alt in _candidates(a, W, H):

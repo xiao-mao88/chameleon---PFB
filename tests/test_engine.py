@@ -575,6 +575,16 @@ class PartsTest(unittest.TestCase):
         self.assertTrue(all(LADDER[:-1]))
         self.assertFalse(NO_FLOOR)
 
+    def test_logo_floor_does_not_rank_arrangements(self):
+        """A step that also holds the logo ranks the same as its text-only
+        twin when candidate arrangements are compared."""
+        from engine.layout import LADDER, _text_rank
+        twins = [(lv, t) for lv in LADDER if lv.mark for t in LADDER if not t.mark
+                 and (t.headline, t.action, t.text) == (lv.headline, lv.action, lv.text)]
+        self.assertTrue(twins)
+        for lv, twin in twins:
+            self.assertEqual(_text_rank(lv), _text_rank(twin))
+
 
 if __name__ == "__main__":
     unittest.main()
