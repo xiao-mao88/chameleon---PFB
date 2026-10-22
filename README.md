@@ -83,7 +83,7 @@ them.
 | On our 504 hand-drawn layouts | Score | Valid | No text overflow | Readable | No overlaps |
 |---|---|---|---|---|---|
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
-| **Now** | **58.1** | 100% | 100% | **100%** | **100%** |
+| **Now** | **58.4** | 100% | 100% | **100%** | **100%** |
 
 On the tiniest web banners, the headline and call to action stay readable
 in every design:
@@ -92,6 +92,14 @@ in every design:
 |---|---|---|---|
 | Headline and CTA readable | 100% (was 78%) | 100% (was 95%) | 100% (was 95%) |
 | All text readable | 77% | 95% | 95% |
+
+Inside the Docker image the judges run, across all 1,534 test cases (59
+designs × 26 sizes): 0 hard-rule failures, 0 text overflows and 0
+collisions; contrast is clean except over missing-asset placeholders. A
+fresh clone builds with `--no-cache`, runs offline and gives identical
+results on every run. The full evaluator run is saved in
+`eval/results/final.json` (re-create it with
+`python -m tools.evaluate --size 320x50 --size 320x100 --size 468x60 --save final`).
 
 All tests pass. The slowest single resize takes about 8 seconds (up to about
 15 seconds in the Docker image on an Apple-silicon Mac, which emulates amd64).
@@ -120,5 +128,5 @@ tools/                 evaluate.py · make_inputs.py · dataset.py
 adobe-projchameleon/   our hand-drawn layouts, used for testing only
 input/  output/        tasks in, JSON + PNG out
 renderer/  brand_kit/  official renderer, fonts and images
-eval/results/          saved evaluation runs
+eval/results/          final.json: the current evaluator run, per task
 ```
