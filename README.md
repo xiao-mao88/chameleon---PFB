@@ -105,6 +105,9 @@ All tests pass. The slowest single resize takes about 8 seconds (up to about
 - **Letter-spacing can be reduced** to make text fit. Text is never cut off.
 - **The similarity score is a proxy.** It measures closeness to one
   set of hand-made choices (our own, not official). The official judge scores the rendered image.
+- **Copy on a full-width scrim can leave it in side-by-side layouts.** Growing
+  the band over the copy would shade the product drawn beneath it, so the
+  band stays and the copy reads on the photo (the tests list these cases).
 - **Nothing is hidden.** Every element must stay, so on tiny canvases
   nothing is dropped to save space.
 

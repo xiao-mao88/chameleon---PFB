@@ -105,6 +105,9 @@ KNOWN_LIMITATIONS = {
         "need ~600px at 7px, before the headline and CTA",
 }
 
+_SCRIM = ("copy moves off its bottom scrim in side-by-side layouts: growing the "
+          "band over the copy would shade the product drawn beneath it")
+
 # Trade-offs the engine makes on purpose, outside readability: listed so the
 # tests show them, and checked so the list stays honest.
 TRADE_OFFS = {
@@ -113,6 +116,10 @@ TRADE_OFFS = {
         "avoid all of them",
     ("ref_fernway_split_even_banner", "medium_rectangle"):
         "text keeps 9px, so the logo gives up its minimum (text first)",
+    **{("novel_scrim_on_photo", t): _SCRIM for t in (
+        "instagram_post", "facebook_link", "x_post", "x_header", "youtube_thumbnail",
+        "medium_rectangle", "leaderboard", "billboard", "linkedin_banner",
+        "linkedin_company_cover", "youtube_channel_art", "small_rectangle", "app_icon_tile")},
 }
 
 # Cases where even the headline and standalone buttons can't reach 7px.
@@ -473,6 +480,30 @@ def run(source: dict, W: int, H: int) -> tuple[dict, bool]:
     return out, fallback.called
 
 
+def _copy_off_bands(source: dict, output: dict) -> list[str]:
+    """Texts that sat on a full-width or full-height backdrop (opacity >= 0.3)
+    in the source but are entirely off it in the output."""
+    from engine.analyze import analyze, box_of
+
+    def ov(a, b):
+        return max(0, min(a[2], b[2]) - max(a[0], b[0])) * max(0, min(a[3], b[3]) - max(a[1], b[1]))
+    a = analyze(source)
+    W0, H0 = a.canvas
+    by = {e["id"]: e for e in output["elements"]}
+    out = []
+    for band in a.edge:
+        x0, y0, x1, y1 = box_of(band)
+        if not ((x0 <= 1 and x1 >= W0 - 1) or (y0 <= 1 and y1 >= H0 - 1)) \
+                or float(band.get("opacity", 1)) < 0.3:
+            continue
+        for t in source["elements"]:
+            if (t["type"] == "text" and t.get("content")
+                    and ov(box_of(t), box_of(band)) >= 0.9 * t["width"] * t["height"]
+                    and ov(box_of(by[t["id"]]), box_of(by[band["id"]])) == 0):
+                out.append(t["id"])
+    return out
+
+
 def _small_logos(source: dict, output: dict) -> list[str]:
     """Logos (a lone image in the copy or a corner) under 18px of visible height."""
     from engine.analyze import analyze
@@ -636,7 +667,8 @@ class EngineTest(unittest.TestCase):
         for (sname, tname), why in TRADE_OFFS.items():
             print(f"  {sname} -> {tname}: {why}")
             src, W, H, out, _ = self.results[(sname, tname)]
-            self.assertTrue(collision_checks(src, out) or _small_logos(src, out),
+            self.assertTrue(collision_checks(src, out) or _small_logos(src, out)
+                            or _copy_off_bands(src, out),
                             f"{sname} -> {tname} no longer trades - remove it from TRADE_OFFS")
 
     def test_contrast_sampled(self):
