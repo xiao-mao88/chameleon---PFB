@@ -81,6 +81,9 @@ MAX_SECONDS = 10.0
 CONTRAST_EVERY = 13     # render every 13th case for the contrast test
 
 
+_CARDS = ("product cards are rigid groups (image over name and price): at 7px "
+          "names a card is ~110px tall, more than the canvas allows")
+
 # Readability cases the engine is known to miss, with the reason. Listed
 # here so they show in the test output instead of being skipped silently;
 # test_known_limitations fails once one is fixed, so the list stays honest.
@@ -94,6 +97,22 @@ KNOWN_LIMITATIONS = {
     ("novel_rotated_all", "mobile_banner"):
         "a 30°-rotated headline in 320x50: at 9px its rotated bounds are 42px "
         "tall at best, the strip has 40px",
+    **{("novel_product_cards", t): _CARDS for t in (
+        "leaderboard", "super_leaderboard", "mobile_banner", "large_mobile_banner",
+        "full_banner", "small_rectangle", "app_icon_tile")},
+    ("novel_product_cards", "skyscraper"):
+        "4 cards stack one per line in 120px: with the gaps between lines they "
+        "need ~600px at 7px, before the headline and CTA",
+}
+
+# Trade-offs the engine makes on purpose, outside readability: listed so the
+# tests show them, and checked so the list stays honest.
+TRADE_OFFS = {
+    ("novel_layered_shapes", "app_icon_tile"):
+        "three blobs cover 66% of the design; on a 100px tile the copy can't "
+        "avoid all of them",
+    ("ref_fernway_split_even_banner", "medium_rectangle"):
+        "text keeps 9px, so the logo gives up its minimum (text first)",
 }
 
 # Cases where even the headline and standalone buttons can't reach 7px.
@@ -274,6 +293,159 @@ def novel_designs() -> dict[str, dict]:
         if e.get("fit") != "cover":
             e["rotation"] = 30
     out["rotated_all"] = src
+
+    # -- blind spots of the designs above: light theme, scrims, cards, two
+    # CTAs, right alignment, inverted hierarchy, and non-square sources --
+    dark, cream = "rgba(40,24,48,1)", "rgba(246,238,224,1)"
+    out["light_theme"] = {"canvas": {"width": 1080, "height": 1350}, "elements": _with_z([
+        _shape("bg", 0, 0, 1080, 1350, fill_color=cream),
+        _image("logo", 80, 80, 240, 80, "solstice_logo_lockup.png", fit="contain"),
+        _image("bottle", 390, 260, 300, 600, "solstice_bottle.png", fit="contain"),
+        _text("headline", 80, 920, 920, 120, "Chase the Light", 96, font_family="Solstice Serif",
+              color=dark, text_align="center"),
+        _text("sub", 140, 1050, 800, 60, "Botanical sparkling infusions.", 34, color=dark,
+              text_align="center"),
+        _shape("cta_bg", 340, 1160, 400, 90, corner_radius=45, fill_color=dark, group_id="cta"),
+        _text("cta_label", 340, 1185, 400, 40, "Shop now", 30, font_weight="bold",
+              color=cream, text_align="center", group_id="cta")])}
+
+    out["scrim_on_photo"] = {"canvas": {"width": 1080, "height": 1350}, "elements": _with_z([
+        _image("photo", 0, 0, 1080, 1350, "solstice_bg_gradient.png", fit="cover"),
+        _image("bottle", 340, 120, 400, 760, "solstice_bottle.png", fit="contain"),
+        _shape("scrim", 0, 920, 1080, 430, fill_color="rgba(0,0,0,1)", opacity=0.5),
+        _text("headline", 80, 960, 920, 110, "Golden Hour, Bottled", 84,
+              font_family="Solstice Serif"),
+        _text("sub", 80, 1080, 920, 60, "Small batches, crafted at sunset.", 34),
+        _shape("cta_bg", 80, 1180, 360, 90, corner_radius=45, group_id="cta"),
+        _text("cta_label", 80, 1205, 360, 40, "Find a store", 30, font_weight="bold",
+              text_align="center", group_id="cta")])}
+
+    els = [_shape("bg", 0, 0, 1080, 1080, fill_color=dark),
+           _text("headline", 80, 60, 920, 100, "Pick Your Flavor", 72, font_family="Solstice Serif",
+                 text_align="center")]
+    for i in range(4):
+        x = 60 + i * 250
+        els += [_image(f"card{i}_img", x, 220, 220, 360, "solstice_bottle.png", fit="contain",
+                       group_id=f"card{i}"),
+                _text(f"card{i}_name", x, 600, 220, 40, f"Flavor {i + 1}", 30, text_align="center",
+                      group_id=f"card{i}"),
+                _text(f"card{i}_price", x, 650, 220, 36, f"${4 + i}.99", 26, text_align="center",
+                      group_id=f"card{i}")]
+    els += [_shape("cta_bg", 340, 860, 400, 90, corner_radius=45, group_id="cta"),
+            _text("cta_label", 340, 885, 400, 40, "Shop the range", 30, font_weight="bold",
+                  text_align="center", group_id="cta")]
+    out["product_cards"] = {"canvas": {"width": 1080, "height": 1080}, "elements": _with_z(els)}
+
+    out["two_ctas"] = {"canvas": {"width": 1080, "height": 1080}, "elements": _with_z([
+        _image("bg", 0, 0, 1080, 1080, "solstice_bg_gradient.png", fit="cover"),
+        _text("headline", 100, 300, 880, 120, "Chase the Light", 96, font_family="Solstice Serif",
+              text_align="center"),
+        _text("sub", 140, 440, 800, 60, "Botanical sparkling infusions.", 34, text_align="center"),
+        _shape("buy_bg", 150, 600, 360, 90, corner_radius=45, group_id="buy"),
+        _text("buy_label", 150, 625, 360, 40, "Buy now", 30, font_weight="bold",
+              text_align="center", group_id="buy"),
+        _shape("more_bg", 570, 600, 360, 90, corner_radius=45, fill_color="rgba(90,60,110,1)",
+               group_id="more"),
+        _text("more_label", 570, 625, 360, 40, "Learn more", 30, font_weight="bold",
+              text_align="center", group_id="more")])}
+
+    out["right_aligned"] = {"canvas": {"width": 1080, "height": 1080}, "elements": _with_z([
+        _image("bg", 0, 0, 1080, 1080, "solstice_bg_gradient.png", fit="cover"),
+        _image("bottle", 60, 180, 360, 720, "solstice_bottle.png", fit="contain"),
+        _text("kicker", 480, 300, 520, 40, "NEW FOR SUMMER", 26, text_align="right",
+              font_weight="bold"),
+        _text("headline", 480, 360, 520, 240, "Chase the Light", 92, text_align="right",
+              font_family="Solstice Serif"),
+        _text("sub", 480, 620, 520, 100, "Botanical sparkling infusions, crafted for golden "
+              "hour.", 30, text_align="right"),
+        _shape("cta_bg", 640, 780, 360, 90, corner_radius=45, group_id="cta"),
+        _text("cta_label", 640, 805, 360, 40, "Shop now", 30, font_weight="bold",
+              text_align="center", group_id="cta")])}
+
+    out["hero_right"] = {"canvas": {"width": 1080, "height": 1080}, "elements": _with_z([
+        _image("bg", 0, 0, 1080, 1080, "solstice_bg_gradient.png", fit="cover"),
+        _image("logo", 80, 140, 240, 80, "solstice_logo_lockup.png", fit="contain"),
+        _text("headline", 80, 280, 520, 240, "Chase the Light", 92, font_family="Solstice Serif"),
+        _text("sub", 80, 540, 520, 100, "Botanical sparkling infusions, crafted for golden "
+              "hour.", 30),
+        _shape("cta_bg", 80, 700, 360, 90, corner_radius=45, group_id="cta"),
+        _text("cta_label", 80, 725, 360, 40, "Shop now", 30, font_weight="bold",
+              text_align="center", group_id="cta"),
+        _image("bottle", 660, 180, 360, 720, "solstice_bottle.png", fit="contain")])}
+
+    out["inverted_hierarchy"] = {"canvas": {"width": 1080, "height": 1350}, "elements": _with_z([
+        _shape("bg", 0, 0, 1080, 1350, fill_color=dark),
+        _text("headline", 100, 120, 880, 60, "A note on our ingredients", 40,
+              font_family="Solstice Serif"),
+        _text("body", 100, 220, 880, 640, "Every bottle starts with whole botanicals picked at "
+              "first light, steeped slowly in small batches and finished with a little wild "
+              "honey. Nothing is rushed: each infusion rests for three days before it is "
+              "bottled, so the flavor of the garden comes through in every sip. We source from "
+              "farms within a day's drive and pay them fairly for it.", 32),
+        _text("disclaimer", 100, 1120, 880, 120, "Contains natural sugars. Best served chilled. "
+              "Recipes may vary with the season and the harvest.", 20),
+        _shape("cta_bg", 100, 940, 360, 90, corner_radius=45, group_id="cta"),
+        _text("cta_label", 100, 965, 360, 40, "Read more", 30, font_weight="bold",
+              text_align="center", group_id="cta")])}
+
+    els = [_shape("bg", 0, 0, 1080, 1080, fill_color=dark)]
+    for i, (x, y, d) in enumerate([(-80, 120, 620), (380, -60, 560), (520, 480, 700)]):
+        els.append(_shape(f"blob{i}", x, y, d, d, shape_type="ellipse", opacity=0.5,
+                          fill_color=["rgba(232,106,58,1)", "rgba(242,183,64,1)",
+                                      "rgba(122,150,110,1)"][i]))
+    els += [_text("headline", 100, 400, 880, 120, "Layers of Flavor", 92,
+                  font_family="Solstice Serif", text_align="center"),
+            _text("sub", 140, 540, 800, 60, "Three botanicals in every bottle.", 34,
+                  text_align="center"),
+            _shape("cta_bg", 340, 680, 400, 90, corner_radius=45, group_id="cta"),
+            _text("cta_label", 340, 705, 400, 40, "Taste them", 30, font_weight="bold",
+                  text_align="center", group_id="cta")]
+    out["layered_shapes"] = {"canvas": {"width": 1080, "height": 1080}, "elements": _with_z(els)}
+
+    out["wide_source"] = {"canvas": {"width": 1600, "height": 400}, "elements": _with_z([
+        _image("bg", 0, 0, 1600, 400, "solstice_bg_gradient.png", fit="cover"),
+        _image("bottle", 80, 40, 160, 320, "solstice_bottle.png", fit="contain"),
+        _image("logo", 300, 60, 180, 60, "solstice_logo_lockup.png", fit="contain"),
+        _text("headline", 300, 140, 760, 90, "Chase the Light", 72, font_family="Solstice Serif"),
+        _text("sub", 300, 240, 760, 50, "Botanical sparkling infusions, crafted for golden hour.",
+              28),
+        _shape("cta_bg", 1200, 155, 340, 90, corner_radius=45, group_id="cta"),
+        _text("cta_label", 1200, 180, 340, 40, "Shop now", 30, font_weight="bold",
+              text_align="center", group_id="cta")])}
+
+    out["story_source"] = {"canvas": {"width": 1080, "height": 1920}, "elements": _with_z([
+        _image("bg", 0, 0, 1080, 1920, "solstice_bg_gradient.png", fit="cover"),
+        _shape("badge_bg", 60, 80, 280, 70, corner_radius=35, group_id="badge"),
+        _text("badge_label", 60, 98, 280, 34, "NEW FLAVOR", 26, font_weight="bold",
+              text_align="center", group_id="badge"),
+        _image("logo", 400, 220, 280, 94, "solstice_logo_lockup.png", fit="contain"),
+        _image("bottle", 290, 400, 500, 1000, "solstice_bottle.png", fit="contain"),
+        _text("headline", 80, 1450, 920, 130, "Chase the Light", 110,
+              font_family="Solstice Serif", text_align="center"),
+        _text("sub", 120, 1600, 840, 60, "Botanical sparkling infusions.", 38,
+              text_align="center"),
+        _shape("cta_bg", 290, 1720, 500, 110, corner_radius=55, group_id="cta"),
+        _text("cta_label", 290, 1750, 500, 50, "Shop the Summer Line", 34, font_weight="bold",
+              text_align="center", group_id="cta")])}
+
+    out["tiny_source"] = {"canvas": {"width": 320, "height": 50}, "elements": _with_z([
+        _shape("bg", 0, 0, 320, 50, fill_color=dark),
+        _image("logo", 6, 10, 60, 30, "solstice_logo_lockup.png", fit="contain"),
+        _text("headline", 74, 14, 150, 22, "Chase the Light", 14, font_family="Solstice Serif"),
+        _shape("cta_bg", 236, 11, 78, 28, corner_radius=14, group_id="cta"),
+        _text("cta_label", 236, 18, 78, 14, "Shop now", 10, font_weight="bold",
+              text_align="center", group_id="cta")])}
+
+    out["skyscraper_source"] = {"canvas": {"width": 160, "height": 600}, "elements": _with_z([
+        _image("bg", 0, 0, 160, 600, "solstice_bg_gradient.png", fit="cover"),
+        _image("logo", 30, 20, 100, 34, "solstice_logo_lockup.png", fit="contain"),
+        _image("bottle", 30, 80, 100, 200, "solstice_bottle.png", fit="contain"),
+        _text("headline", 12, 300, 136, 80, "Chase the Light", 22, font_family="Solstice Serif",
+              text_align="center"),
+        _text("sub", 12, 390, 136, 70, "Botanical sparkling infusions.", 13, text_align="center"),
+        _shape("cta_bg", 20, 500, 120, 40, corner_radius=20, group_id="cta"),
+        _text("cta_label", 20, 511, 120, 18, "Shop now", 13, font_weight="bold",
+              text_align="center", group_id="cta")])}
     return out
 
 
@@ -283,6 +455,8 @@ def sources() -> dict[str, dict]:
     for d in drawings():
         if d.format == "square":
             out[f"ref_{d.design}"] = d.load()
+        elif d.format == "banner":           # a wide source of the same designs
+            out[f"ref_{d.design}_banner"] = d.load()
     for name, src in novel_designs().items():
         out[f"novel_{name}"] = src
     return out
@@ -297,6 +471,16 @@ def run(source: dict, W: int, H: int) -> tuple[dict, bool]:
     with mock.patch("engine.resize.traceback.print_exc") as fallback:
         out = resize(copy.deepcopy(source), {"width": W, "height": H})
     return out, fallback.called
+
+
+def _small_logos(source: dict, output: dict) -> list[str]:
+    """Logos (a lone image in the copy or a corner) under 18px of visible height."""
+    from engine.analyze import analyze
+    from engine.critic import visible
+    a = analyze(source)
+    by = {e["id"]: e for e in output["elements"]}
+    return [u.els[0]["id"] for u in a.flow + [u for u, _ in a.corner] if u.role == "mark"
+            and visible(by[u.els[0]["id"]])[3] - visible(by[u.els[0]["id"]])[1] < 18]
 
 
 def rotated_off_canvas(output: dict) -> list[str]:
@@ -415,19 +599,10 @@ class EngineTest(unittest.TestCase):
         """A lone image in the copy or a corner (a logo) stays recognisable -
         at least 18px of visible height - wherever the canvas has room
         (short side 250px or more). Smaller formats give text priority."""
-        from engine.analyze import analyze
-        from engine.critic import visible
-
         def check(src, W, H, out, _):
-            if min(W, H) < 250:
-                return
-            a = analyze(src)
-            by = {e["id"]: e for e in out["elements"]}
-            for u in a.flow + [u for u, _ in a.corner]:
-                if u.role == "mark":
-                    vb = visible(by[u.els[0]["id"]])
-                    self.assertGreaterEqual(vb[3] - vb[1], 18, u.els[0]["id"])
-        self.each(check)
+            if min(W, H) >= 250:
+                self.assertEqual(_small_logos(src, out), [])
+        self.each(check, skip=TRADE_OFFS)
 
     def test_key_copy_limits(self):
         print(f"\nheadline/CTA limitations ({len(KEY_COPY_LIMITS)}):")
@@ -454,7 +629,15 @@ class EngineTest(unittest.TestCase):
         def check(src, W, H, out, _):
             if copy_fits(src, W, H):    # copy that can't fit is best effort
                 self.assertEqual(collision_checks(src, out), [])
-        self.each(check)
+        self.each(check, skip=TRADE_OFFS)
+
+    def test_trade_offs(self):
+        print(f"\ntrade-offs ({len(TRADE_OFFS)}):")
+        for (sname, tname), why in TRADE_OFFS.items():
+            print(f"  {sname} -> {tname}: {why}")
+            src, W, H, out, _ = self.results[(sname, tname)]
+            self.assertTrue(collision_checks(src, out) or _small_logos(src, out),
+                            f"{sname} -> {tname} no longer trades - remove it from TRADE_OFFS")
 
     def test_contrast_sampled(self):
         for (sname, tname), (src, W, H, out, _) in list(self.results.items())[::CONTRAST_EVERY]:
