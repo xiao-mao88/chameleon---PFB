@@ -165,9 +165,13 @@ class Analysis:
     container_children: set[str]
     corner: list[tuple[Unit, str]]   # (unit, "tl"|"tr"|"bl"|"br")
     flow: list[Unit]             # reading order
-    centered: bool               # copy was centred on the canvas
+    align: str                   # how most of the copy was aligned: "left", "center", "right"
     max_font: float              # largest source font size
     elements: list[dict] = field(default_factory=list)   # the source elements, as given
+
+    @property
+    def centered(self) -> bool:
+        return self.align == "center"
 
 
 def _opacity(el: dict) -> float:
@@ -334,14 +338,17 @@ def analyze(source: dict[str, Any]) -> Analysis:
             u.lead = head_font / fonts[0] if fonts and fonts[0] > 0 else float("inf")
 
     texts = [e for u in flow if u.reflow for e in u.els]
-    centered = bool(texts) and sum(e.get("text_align") == "center" for e in texts) > len(texts) / 2
+    align = "left"
+    for side in ("center", "right"):
+        if texts and sum(e.get("text_align") == side for e in texts) > len(texts) / 2:
+            align = side
 
     return Analysis(
         canvas=(W, H), background=background, edge=edge, deco=deco,
         visual=visual_unit, visual_parts=visual_parts,
         container=container,
         container_children={e["id"] for u in children for e in u.els},
-        corner=corner, flow=flow, centered=centered,
+        corner=corner, flow=flow, align=align,
         max_font=max((e["font_size"] for e in els if e["type"] == "text"), default=0.0),
         elements=els)
 
@@ -407,7 +414,9 @@ def _xy_order(units: list[Unit], W: float, H: float) -> list[Unit]:
     singles = [p[0] for p in parts if len(p) == 1]
     if (len(parts) >= 2 and len(singles) == len(parts)
             and all(not u.reflow for u in singles)
-            and max(u.h for u in singles) <= 1.6 * min(u.h for u in singles)):
+            and max(u.h for u in singles) <= 1.6 * min(u.h for u in singles)
+            # side by side on one line, not just in different columns
+            and min(u.box[3] for u in singles) > max(u.box[1] for u in singles)):
         rid = next(_row_ids)
         for u in singles:
             u.row = rid

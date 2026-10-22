@@ -484,7 +484,10 @@ class LineItem:
         for per in range(len(self.units) - 1, 0, -1):
             w, _ = self._extent(per)
             if w * s <= cw:
-                return per, max(1e-3, s)
+                # as many lines, filled evenly (2 + 2, not 3 + 1); fewer per
+                # line is never wider
+                n = len(self.units)
+                return math.ceil(n / math.ceil(n / per)), max(1e-3, s)
         if floor:
             return 0, s                 # mixed row too wide even one per line
         w, _ = self._extent(1)
@@ -789,6 +792,8 @@ class Column:
         for i, (it, (w, h)) in enumerate(zip(self.items, sizes)):
             if align == "center":
                 ix = x + (cw - w) / 2
+            elif align == "right":
+                ix = x + cw - w
             else:   # left: line up what is visible with the text's edge
                 ix = max(0.0, x - left_inset(it) * w)
             out += it.place(ix, cy, f, cw, self.floor)
@@ -878,15 +883,19 @@ def vertical(a: Analysis, W, H, fold_corners: bool = False) -> Plan:
     x0, y0, cw = m, max(m, top + 0.5 * m), W - 2 * m
     ch = H - y0 - max(m, bottom + 0.5 * m)
     x0, y0, cw, ch = clear_of_bands(a, W, H, k, m, x0, y0, cw, ch)
-    align = "center" if a.centered else None
+    align = a.align if a.align != "left" else None
 
     # Visual inserted into the reading order where it sat in the source.
     before = [u for u in a.flow if a.visual and u.cy < a.visual.cy]
     if a.visual and a.flow:
-        # side-by-side source: the visual leads if it was on the left
+        # side-by-side source: the visual leads if it was on the left. Copy
+        # that only surrounds the visual (logo above, text below) is not
+        # beside it: they overlap across, too
         fb = union(u.box for u in a.flow)
         vb = a.visual.box
-        if min(vb[3], fb[3]) - max(vb[1], fb[1]) > 0.5 * min(vb[3] - vb[1], fb[3] - fb[1]):
+        across = min(vb[2], fb[2]) - max(vb[0], fb[0])
+        if (min(vb[3], fb[3]) - max(vb[1], fb[1]) > 0.5 * min(vb[3] - vb[1], fb[3] - fb[1])
+                and across < 0.5 * min(vb[2] - vb[0], fb[2] - fb[0])):
             before = [] if a.visual.cx <= (fb[0] + fb[2]) / 2 else list(a.flow)
     after = [u for u in a.flow if u not in before]
     items_b = make_items(before, k, align, a.max_font)
@@ -904,7 +913,7 @@ def vertical(a: Analysis, W, H, fold_corners: bool = False) -> Plan:
     f = col.solve(cw, ch)
     col_align = "center" if (a.centered or vis) else "left"
     # a text panel hugs its copy: no extra room inside it
-    els = col.place(x0, y0, cw, ch, f, col_align if a.centered else "left",
+    els = col.place(x0, y0, cw, ch, f, col_align if a.centered else a.align,
                     spread=SPREAD_SHARE if a.container is None else 0.0)
     if not a.centered and vis:
         # left-aligned copy, but centre the hero visual across the canvas
@@ -995,7 +1004,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
 
     lead, main, action, outside = _split_columns(a, flow, strip, r)
 
-    text_align = "left"
+    text_align = "right" if a.align == "right" else "left"
     ch_top = max(m, top + 0.5 * m) if not strip else max(2.0, 0.1 * H)
     ch_bot = max(m, bottom + 0.5 * m) if not strip else max(2.0, 0.1 * H)
     ch = H - ch_top - ch_bot
@@ -1041,7 +1050,7 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
             # split the free width evenly either side of the copy, rather
             # than leaving it all between the copy and the CTA column
             x += max(0.0, xr - x - min(w, cw)) / 2
-        els += c.place(x, ch_top, max(w, 1.0) if w < cw else cw, ch, f, "left")
+        els += c.place(x, ch_top, max(w, 1.0) if w < cw else cw, ch, f, text_align)
         quality_fs.insert(0, f)
     f_main = min(quality_fs) if quality_fs else 1.0
     floor = min(floors_used, default=STRICTEST)
