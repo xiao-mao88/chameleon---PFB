@@ -115,8 +115,30 @@ def scaled_copy(el: dict, x0: float, y0: float, s: float, X: float, Y: float) ->
         if isinstance(el.get(k), (int, float)):
             out[k] = el[k] * s
     if el["type"] == "text":
-        out["font_size"] = max(1.0, el["font_size"] * s)
+        out["font_size"] = _q(max(1.0, el["font_size"] * s))
+        # text doesn't scale exactly in proportion (glyph widths are rounded
+        # per size on some platforms): shrink it a little if it no longer
+        # fits its scaled box, by at most a fifth
+        for _ in range(10):
+            if _fits_box(out) or out["font_size"] <= 0.8 * el["font_size"] * s:
+                break
+            out["font_size"] = _q(out["font_size"] * 0.98)
+            if isinstance(el.get("letter_spacing"), (int, float)):
+                out["letter_spacing"] *= 0.98
     return out
+
+
+def _q(font: float) -> float:
+    """A font size as it is output (finalize keeps 2 decimals, rounded down).
+    Text is measured at exactly this size: on some platforms a 0.01px
+    change can move a line break either way."""
+    return math.floor(font * 100 + 1e-6) / 100
+
+
+def _fits_box(el: dict) -> bool:
+    """Whether text el, drawn at its font size, stays inside its box."""
+    tw, th, _ = measure(el, el["font_size"], el["width"])
+    return tw <= el["width"] + 0.5 and th <= el["height"] + 0.5
 
 
 def place_rigid(unit: Unit, X: float, Y: float, s: float) -> list[dict]:
@@ -206,15 +228,18 @@ class TextItem:
         key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
             need = self._need(floor)
-            font = max(1.0, self.pref * f, need)
+            font = _q(max(1.0, self.pref * f, need))
             if is_tracked(self.el):
                 self._cache[key] = self._fit_tracked(font, cw)
                 return self._cache[key]
             tw, th, _ = measure(self.el, font, cw)
-            if tw > cw:                       # one unbreakable word too wide
-                font = max(1.0, font * cw / tw * 0.98)
+            for _ in range(4):                # one unbreakable word too wide
+                if tw <= cw or font <= 1.0:
+                    break
+                # glyph widths don't scale exactly with size: re-measure
+                font = _q(max(1.0, font * cw / tw * 0.98))
                 if font < need and measure(self.el, need, cw)[0] <= cw:
-                    font = need                   # the shrink overshot the floor
+                    font = _q(need)               # the shrink overshot the floor
                 tw, th, _ = measure(self.el, font, cw)
             w = min(cw, tw + 0.02 * font + 2)
             # re-measure a hair narrower than the final box: output rounding
@@ -337,7 +362,13 @@ class ButtonItem(RigidItem):
         need = floor.of(self.role)
         if not self.compact and (not need or
                                  self.label["font_size"] * self.scale(f, cw, floor) >= need - 1e-6):
-            return None
+            s = self.scale(f, cw, floor)
+            if _fits_box(dict(self.label, width=self.label["width"] * s,
+                              height=self.label["height"] * s,
+                              font_size=self.label["font_size"] * s,
+                              letter_spacing=(self.label.get("letter_spacing") or 0.0) * s)):
+                return None      # scaled as a block, its label still fits
+            # else re-wrap the pill around the label, as for a small label
         key = (round(f, 4), round(cw, 1), floor, self.track_cap)
         if key not in self._cache:
             font = max(need, self.label["font_size"] * rigid, 1.0)

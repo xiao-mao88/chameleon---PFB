@@ -39,6 +39,13 @@ def finalize(source: dict[str, Any], placed: list[dict], W: int, H: int) -> list
                 el[k] = 0.0
         el["width"], el["height"] = max(0.0, el["width"]), max(0.0, el["height"])
 
+        if _keeps_aspect(src) and 0 < min(el["width"], el["height"]) < 1.0:
+            # sub-pixel: rounding to 0.01px would distort its proportions
+            g = 1.0 / min(el["width"], el["height"])
+            cx, cy = el["x"] + el["width"] / 2, el["y"] + el["height"] / 2
+            el["width"], el["height"] = el["width"] * g, el["height"] * g
+            el["x"], el["y"] = cx - el["width"] / 2, cy - el["height"] / 2
+
         if _keeps_aspect(src) and src["height"] > 0 and src["width"] > 0 and el["height"] > 0:
             ratio = src["width"] / src["height"]
             if abs((el["width"] / el["height"]) / ratio - 1) > 0.01:
@@ -76,7 +83,9 @@ def finalize(source: dict[str, Any], placed: list[dict], W: int, H: int) -> list
         el["y"] = min(max(el["y"], 0.0), H - el["height"])
 
         if el["type"] == "text":
-            el["font_size"] = round(max(1.0, float(el.get("font_size", src["font_size"]))), 2)
+            # rounded down: a hair larger text can wrap onto one more line
+            fs = max(1.0, float(el.get("font_size", src["font_size"])))
+            el["font_size"] = math.floor(fs * 100 + 1e-6) / 100
         for k in ("x", "y", "width", "height"):
             el[k] = round(el[k], 2)
         # rounding must not push anything over the edge
