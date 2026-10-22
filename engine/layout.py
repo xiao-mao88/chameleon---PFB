@@ -34,6 +34,7 @@ from engine.textmeasure import measure_text
 GAP_CAP = 0.06          # max source gap between copy items, as fraction of source height
 MIN_GAP = 0.012         # min gap between copy items, as fraction of target short side
 VISUAL_GAP = 0.04       # gap between hero visual and copy, fraction of short side
+SPREAD_SHARE = 0.25     # share of a tall column's free height given to the space around its images
 SIDE_OFFSET = 0.2       # visual/copy centres this far apart sideways (fraction of width) keep their sides
 MIN_FONT = MIN_HEADLINE  # 9px: smallest font any reference uses; fitting won't go below it if it can help it
 
@@ -769,9 +770,20 @@ class Column:
                 lo = mid
         return hi
 
-    def place(self, x, y, cw, ch, f, align, valign="center"):
+    def place(self, x, y, cw, ch, f, align, valign="center", spread=0.0):
+        """Stack the items at scale f. With `spread`, that share of the free
+        height goes to the gaps next to images (hero visual, logos): the
+        copy stays one block, the column breathes like a poster."""
         sizes, gaps = self.heights(f, cw)
         total = sum(h for _, h in sizes) + sum(gaps)
+        if spread and ch > total:
+            def image(it):
+                return isinstance(it, VisualItem) or getattr(it, "role", None) == "mark"
+            open_ = [i for i in range(len(gaps)) if image(self.items[i]) or image(self.items[i + 1])]
+            if open_:
+                extra = (ch - total) * spread / len(open_)
+                gaps = [g + extra if i in open_ else g for i, g in enumerate(gaps)]
+                total += extra * len(open_)
         cy = y + (ch - total) / 2 if valign == "center" else y
         out = []
         for i, (it, (w, h)) in enumerate(zip(self.items, sizes)):
@@ -891,7 +903,9 @@ def vertical(a: Analysis, W, H, fold_corners: bool = False) -> Plan:
     col = Column(items, gaps, k, MIN_GAP * min(W, H))
     f = col.solve(cw, ch)
     col_align = "center" if (a.centered or vis) else "left"
-    els = col.place(x0, y0, cw, ch, f, col_align if a.centered else "left")
+    # a text panel hugs its copy: no extra room inside it
+    els = col.place(x0, y0, cw, ch, f, col_align if a.centered else "left",
+                    spread=SPREAD_SHARE if a.container is None else 0.0)
     if not a.centered and vis:
         # left-aligned copy, but centre the hero visual across the canvas
         vis_els = {e["id"] for e in vis.unit.els}

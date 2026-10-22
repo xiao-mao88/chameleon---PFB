@@ -37,7 +37,9 @@ tuned to a particular design or size.
    background, a decoration, the hero image, a text panel, a corner badge,
    or copy, and put the copy in reading order.
 2. **Lay out** (`layout.py`): arrange those pieces for the new shape:
-   - **Tall canvases** stack everything in one centred column.
+   - **Tall canvases** stack everything in one centred column. A quarter of
+     the spare height goes to the space around the images, so the column
+     reads like a poster while the copy stays one block.
    - **Wide canvases** put the hero image beside the copy, with the free
      space split evenly around the copy so the CTA isn't stranded.
    - **Very thin banners** spread the copy across several columns.
@@ -81,7 +83,7 @@ them.
 | On our 504 hand-drawn layouts | Score | Valid | No text overflow | Readable | No overlaps |
 |---|---|---|---|---|---|
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
-| **Now** | **57.7** | 100% | 100% | **100%** | **100%** |
+| **Now** | **58.1** | 100% | 100% | **100%** | **100%** |
 
 On the tiniest web banners, the headline and call to action stay readable
 in every design:
