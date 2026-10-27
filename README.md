@@ -44,6 +44,11 @@ tuned to a particular design or size.
      space split evenly around the copy so the CTA isn't stranded.
    - **Very thin banners** spread the copy across several columns.
 
+   In thin strips, a hero made of several separate photos (a gallery, not
+   layered images) is re-spread to fill the strip: the main photo is
+   re-shaped to the strip's height with the others stacked beside it,
+   instead of the whole group shrinking to a sliver.
+
    Images line up with text by their visible pixels, not their boxes, so a
    logo with transparent margins sits flush with the headline. A logo keeps
    at least 27px of visible height (18px when text is at 7px) wherever that
@@ -51,7 +56,8 @@ tuned to a particular design or size.
 
    Text sizes scale with the canvas, then shrink until everything fits. Text
    never goes below 9px (headline) or 7px (everything else) if anything else
-   can give way. On cramped canvases the headline keeps up to 1.4× the
+   can give way, and before it would, labelled pills (chips, badges) tighten
+   their padding, as long as the rest of the copy keeps half its size. On cramped canvases the headline keeps up to 1.4× the
    size of the other text (never more lead than the original design had),
    unless that would shrink the product image too much. When a format is
    too small for all the copy to be readable,
@@ -83,7 +89,7 @@ them.
 | On our 504 hand-drawn layouts | Score | Valid | No text overflow | Readable | No overlaps |
 |---|---|---|---|---|---|
 | Starting point | 56.3 | 100% | 100% | 94% | 88% |
-| **Now** | **58.4** | 100% | 100% | **100%** | **100%** |
+| **Now** | **58.5** | 100% | 100% | **100%** | **100%** |
 
 On the tiniest web banners, the headline and call to action stay readable
 in every design:

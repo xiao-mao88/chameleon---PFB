@@ -27,7 +27,7 @@ from math import comb
 from dataclasses import dataclass, field, replace
 from itertools import combinations
 
-from engine.analyze import Analysis, Unit, area, box_of, rotated_size, rows_of, union, xy_order
+from engine.analyze import Analysis, Unit, area, box_of, overlaps, rotated_size, rows_of, union, xy_order
 from engine.critic import MIN_HEADLINE, MIN_READABLE, collisions, unreadable, visible
 from engine.textmeasure import measure_text
 
@@ -60,6 +60,9 @@ class Floor:
 def _ladder(*levels) -> tuple[Floor, ...]:
     return tuple(Floor(len(levels) - i, *lv) for i, lv in enumerate(levels))
 
+
+PAD_SQUEEZE = 0.5       # pill padding kept when it is tightened to hold the 7px text floor...
+SQUEEZE_MIN_F = 0.5     # ...but only if the rest of the column keeps this share of its natural size
 
 HEADLINE_LEAD = 1.4     # on a canvas tight enough for 9px text, the headline keeps this lead
 HEADLINE_LEAD_COST = 0.8  # ...unless that shrinks the rest of its column below this share
@@ -343,6 +346,7 @@ class ButtonItem(RigidItem):
         self.compact = compact      # always re-wrap (pills in a wrapped row)
         self._styled: dict = {}     # reflow key -> label with fitted tracking
         self.track_cap = 1.0        # most tracking the label may keep (set by Column.solve)
+        self.pad_scale = 1.0        # share of its padding a re-wrapped pill keeps (set by Column.solve)
         self.shape = next(e for e in unit.els if e["type"] == "shape")
         self.label = next(e for e in unit.els if e["type"] == "text")
         sh, lb = self.shape, self.label
@@ -370,17 +374,18 @@ class ButtonItem(RigidItem):
                               letter_spacing=(self.label.get("letter_spacing") or 0.0) * s)):
                 return None      # scaled as a block, its label still fits
             # else re-wrap the pill around the label, as for a small label
-        key = (round(f, 4), round(cw, 1), floor, self.track_cap)
+        key = (round(f, 4), round(cw, 1), floor, self.track_cap, self.pad_scale)
         if key not in self._cache:
             font = max(need, self.label["font_size"] * rigid, 1.0)
-            px, py = self.pad_x * font, self.pad_y * font
+            pad = self.pad_scale
+            px, py = self.pad_x * font * pad, self.pad_y * font * pad
             inner = max(cw - 2 * px, 1.0)
             lb, (tw, th, _) = fit_tracking(self.label, font, inner, self.track_cap)
             for _ in range(8):                # a word (or tracking) too wide
                 if tw <= inner - 0.5 or font <= 1.0:
                     break
                 font = max(1.0, font * max(0.85, (inner - 0.5) / tw * 0.98))
-                px, py = self.pad_x * font, self.pad_y * font
+                px, py = self.pad_x * font * pad, self.pad_y * font * pad
                 inner = max(cw - 2 * px, 1.0)
                 lb, (tw, th, _) = fit_tracking(self.label, font, inner, self.track_cap)
             font = math.ceil(font * 100) / 100   # finalize rounds font_size
@@ -423,7 +428,8 @@ class ButtonItem(RigidItem):
                 if isinstance(e.get("stroke_width"), (int, float)):
                     el["stroke_width"] = e["stroke_width"] * font / self.label["font_size"]
             else:
-                el = dict(self._styled[(round(f, 4), round(cw, 1), floor, self.track_cap)])
+                el = dict(self._styled[(round(f, 4), round(cw, 1), floor, self.track_cap,
+                                        self.pad_scale)])
                 el.update(x=x + px, y=y + py, width=lw, height=lh, font_size=font,
                           text_align="center")
             out.append(el)
@@ -707,20 +713,27 @@ class Column:
                 not self.floor or all(it.font_ok(f, cw, self.floor) for it in self.items))
 
         caps = TRACKING_CAPS if self._tracked() else (1.0,)
+        self._set_pad(1.0)
         done = False
-        for floor in floors:
+        for i, floor in enumerate(floors):
             self.floor = floor
-            for cap in caps:            # tighter tracking before a lower floor
-                self._set_cap(cap)
-                if ok(f_max):
-                    return f_max
-                if floor and ok(1e-3):
-                    done = True
+            for pad in self._pads(floor, floors[i + 1:]):
+                self._set_pad(pad)
+                for cap in caps:        # tighter tracking before a lower floor
+                    self._set_cap(cap)
+                    if ok(f_max):
+                        return f_max
+                    if floor and ok(1e-3 if pad >= 1.0 else SQUEEZE_MIN_F):
+                        done = True
+                        break
+                if done:
                     break
+                if floor:
+                    self._set_cap(1.0)
             if done:
                 break
             if floor:
-                self._set_cap(1.0)
+                self._set_pad(1.0)
         if not self.floor:
             # no floor: the original rule - keep the smallest text at
             # MIN_FONT if that alone is enough, else shrink everything
@@ -744,6 +757,19 @@ class Column:
             for b in getattr(it, "pills", None) or ():
                 if hasattr(b, "track_cap"):
                     yield b
+
+    def _pads(self, floor: Floor, lower) -> tuple[float, ...]:
+        """Pill padding to try at this floor: pills keep all of theirs, except
+        at the last floor that keeps text readable (7px), where they tighten
+        before the copy gives up and drops below it."""
+        last = bool(floor) and floor.text >= MIN_READABLE and bool(lower) and lower[0].text < MIN_READABLE
+        pills = any(hasattr(it, "pad_scale") for it in self._carriers())
+        return (1.0, PAD_SQUEEZE) if last and pills else (1.0,)
+
+    def _set_pad(self, scale: float) -> None:
+        for it in self._carriers():
+            if hasattr(it, "pad_scale"):
+                it.pad_scale = scale
 
     def _tracked(self) -> bool:
         return any(is_tracked(getattr(it, "el", None) or getattr(it, "label", None) or {})
@@ -953,6 +979,89 @@ def clear_of_bands(a: Analysis, W, H, k, m, x0, y0, cw, ch):
     return x0, y0, cw, ch
 
 
+TILE_ASPECT = (0.75, 1.8)   # width/height a recomposed tile may take
+HERO_ASPECT = 1.67          # width/height of a recomposed lead image
+DOMINANT = 2.0              # a lead image this many times the next one's area leads
+
+
+def _tiles(unit: Unit):
+    """The hero cluster's cover-fit images (reshapable: the renderer crops
+    them to their box), largest first, and everything else in it."""
+    tiles = sorted((e for e in unit.els if e["type"] == "image" and e.get("fit") == "cover"
+                    and e["width"] > 0 and e["height"] > 0),
+                   key=lambda e: -e["width"] * e["height"])
+    return tiles, [e for e in unit.els if e not in tiles]
+
+
+def recompose_hero(unit: Unit, slot_w: float, slot_h: float, gap: float, k: float):
+    """The hero cluster re-arranged for a slot much wider than the cluster:
+    scaling it as one block would leave the slot mostly empty. Its cover
+    images are re-shaped and re-spread instead - a lead image (if one
+    clearly dominates) filling the slot's height with the others stacked
+    beside it, otherwise all of them in a row. Anything else in the cluster
+    (caption, badge) must sit on the lead image and keeps its place on it.
+    Returns (elements, width) - positions relative to the slot's top-left -
+    or None when the cluster doesn't fit this treatment."""
+    tiles, rest = _tiles(unit)
+    if len(tiles) < 2:
+        return None             # a lone image has nothing to re-spread
+    area_of = lambda e: e["width"] * e["height"]
+    if any(overlaps(box_of(p), box_of(q)) for i, p in enumerate(tiles) for q in tiles[i + 1:]):
+        return None             # overlapping images are layering to keep, not a grid to re-spread
+    lead = tiles[0] if area_of(tiles[0]) >= DOMINANT * area_of(tiles[1]) else None
+    if rest:
+        if lead is None:
+            return None
+        lb = box_of(lead)
+        if any(not (lb[0] <= (box_of(e)[0] + box_of(e)[2]) / 2 <= lb[2]
+                    and lb[1] <= (box_of(e)[1] + box_of(e)[3]) / 2 <= lb[3]) for e in rest):
+            return None
+    lo, hi = TILE_ASPECT
+    cap = 1.6 * k * max(e["height"] for e in tiles)     # no larger than the rigid scale allows
+    h = min(slot_h, cap)
+    placed: dict[str, dict] = {}
+
+    def put(e, x, y, w, hh):
+        placed[e["id"]] = dict(e, x=x, y=y, width=w, height=hh)
+
+    if lead is None:
+        tiles = sorted(tiles, key=lambda e: (e["x"], e["y"]))
+        asp = [min(max(e["width"] / e["height"], lo), hi) for e in tiles]
+        s = min(1.0, (slot_w - gap * (len(tiles) - 1)) / (h * sum(asp)))
+        th = h * s
+        x = 0.0
+        for e, ar in zip(tiles, asp):
+            put(e, x, (slot_h - th) / 2, th * ar, th)
+            x += th * ar + gap
+        width = x - gap
+    else:
+        others = sorted(tiles[1:], key=lambda e: (e["y"], e["x"]))   # source reading order
+        lw = min(h * HERO_ASPECT, (0.62 if others else 1.0) * slot_w)
+        put(lead, 0.0, (slot_h - h) / 2, lw, h)
+        width = lw
+        if others:
+            n = len(others)
+            th = (h - gap * (n - 1)) / n
+            tw = min(slot_w - lw - gap, th * hi)
+            if tw < 0.25 * th:
+                return None
+            for i, e in enumerate(others):
+                put(e, lw + gap, (slot_h - h) / 2 + i * (th + gap), tw, th)
+            width = lw + gap + tw
+        if rest:
+            lb, p = box_of(lead), placed[lead["id"]]
+            rb = union(box_of(e) for e in rest)
+            s = min(p["width"] / (lb[2] - lb[0]), p["height"] / (lb[3] - lb[1]))
+            rw, rh = (rb[2] - rb[0]) * s, (rb[3] - rb[1]) * s
+            fx = ((rb[0] + rb[2]) / 2 - lb[0]) / (lb[2] - lb[0])
+            fy = ((rb[1] + rb[3]) / 2 - lb[1]) / (lb[3] - lb[1])
+            X = p["x"] + min(max(fx * p["width"] - rw / 2, 0.0), p["width"] - rw)
+            Y = p["y"] + min(max(fy * p["height"] - rh / 2, 0.0), p["height"] - rh)
+            for e in rest:
+                placed[e["id"]] = scaled_copy(e, rb[0], rb[1], s, X, Y)
+    return [placed[e["id"]] for e in unit.els], width
+
+
 def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int = 4) -> Plan:
     H0 = a.canvas[1]
     k = _k(a, W, H)
@@ -977,6 +1086,22 @@ def horizontal(a: Analysis, W, H, vis_frac: float | None = None, max_cols: int =
         vw = a.visual.w * s
         vy = (H - a.visual.h * s) / 2
         vx = left if vis_left else right - vw
+        slot_w = frac * (W - 2 * m)
+        rec = None
+        if strip and vw < 0.6 * slot_w:
+            # scaled as one block the hero would leave its slot mostly empty
+            rec = recompose_hero(a.visual, slot_w, vh, max(2.0, 0.04 * H), k)
+        if rec is not None:
+            hero, hw = rec
+            hx = left if vis_left else right - hw
+            hy = (H - vh) / 2
+            els += [dict(e, x=e["x"] + hx, y=e["y"] + hy) for e in hero]
+            gap = VISUAL_GAP * min(W, H) + m * 0.5
+            if vis_left:
+                left = hx + hw + gap
+            else:
+                right = hx - gap
+    if a.visual is not None and rec is None:
         # stay clear of pinned corner items on the visual's side: fit between them
         lo, hi = m, H - m
         for e in corner_els:
